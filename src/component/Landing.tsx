@@ -11,7 +11,7 @@ const Landing = () => {
     setLoading(true);
     setError("");
     try {
-      const data = await hostelService.login("7705033040", "7705033040");
+      const data = await hostelService.login();
 
       const token = data?.data?.token || data?.token;
 

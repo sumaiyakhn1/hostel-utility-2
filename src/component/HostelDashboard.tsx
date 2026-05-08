@@ -184,7 +184,7 @@ export default function HostelDashboard() {
     roomNo: "",
     bedNo: "",
     remark: "",
-    session: "2025-26 Odd",
+    session: "2025-26 Even",
     regNo: urlRegNo || "",
   });
   const [student, setStudent] = useState<any>(null);
@@ -197,6 +197,7 @@ export default function HostelDashboard() {
   const [hasReapplied, setHasReapplied] = useState(false);
   const [erpHostelAssigned, setErpHostelAssigned] = useState(false);
   const [erpHostelData, setErpHostelData] = useState<any>(null);
+  const [allStudents, setAllStudents] = useState<any[]>([]);
 
   const addNotification = (
     message: string,
@@ -215,9 +216,12 @@ export default function HostelDashboard() {
     setError("");
     try {
       const data = await hostelService.getHostelMaster(
-        "6608ec3120337200120f347e",
+        "5ea04b2f774faa5d67505ab2",
       );
       if (data) setMasterData(data);
+
+      const all = await hostelService.getAllSavedStudents();
+      setAllStudents(all);
     } catch {
       setError("Failed to load hostel data.");
     } finally {
@@ -225,12 +229,33 @@ export default function HostelDashboard() {
     }
   };
 
+  const getFilteredBeds = (roomName: string) => {
+    const room = availableRooms.find((r: any) => r.roomName === roomName);
+    if (!room || !room.beds) return [];
+
+    const takenBeds = allStudents
+      .filter(
+        (s) =>
+          s.roomNo === roomName &&
+          s.regNumber !== form.regNo &&
+          (s.status === "pending" || s.status === "approved" || s.status === "assigned"),
+      )
+      .map((s) => s.bedNo);
+
+    return room.beds.filter((b: any) => !takenBeds.includes(b.bedName) && b.bedStatus !== "Assigned");
+  };
+
+  const getFilteredRooms = () => {
+    const roomNames = Array.from(new Set(availableRooms.map((r: any) => r.roomName)));
+    return roomNames.filter((rn) => getFilteredBeds(rn).length > 0);
+  };
+
   const fetchStudent = async () => {
     if (!form.regNo) return;
     try {
       const data = await hostelService.getStudentDetails({
         id: "689441d9d2b728001069ebe7",
-        entity: "6608ec3120337200120f347e",
+        entity: "5ea04b2f774faa5d67505ab2",
         session: form.session,
         regNo: form.regNo,
       });
@@ -278,7 +303,7 @@ export default function HostelDashboard() {
     if (!form.hostel || !form.roomType) return;
     try {
       const data = await hostelService.getHostelRooms({
-        entity: "6608ec3120337200120f347e",
+        entity: "5ea04b2f774faa5d67505ab2",
         session: form.session,
         hostel: form.hostel,
         roomType: form.roomType,
@@ -450,15 +475,12 @@ export default function HostelDashboard() {
     {
       label: "Room Identifier",
       name: "roomNo",
-      options: Array.from(new Set(availableRooms.map((r) => r.roomName))),
+      options: getFilteredRooms(),
     },
     {
       label: "Bed Allocation",
       name: "bedNo",
-      options:
-        availableRooms
-          .find((r) => r.roomName === form.roomNo)
-          ?.beds?.map((b: any) => b.bedName) || [],
+      options: getFilteredBeds(form.roomNo).map((b: any) => b.bedName),
     },
   ];
 
@@ -711,6 +733,59 @@ export default function HostelDashboard() {
               </p>
             </div>
 
+            {/* Student Profile Card - Always visible after login */}
+            {student && (
+              <div className="mb-8 p-6 bg-white/80 backdrop-blur-xl rounded-[2rem] border border-white shadow-xl shadow-slate-200/50">
+                <div className="flex flex-col sm:flex-row items-center sm:items-start gap-6">
+                  <div 
+                    className="w-20 h-20 rounded-[2rem] flex items-center justify-center text-3xl font-black text-white shadow-lg shadow-orange-200"
+                    style={{ background: ACCENT }}
+                  >
+                    {student.name?.[0] || "?"}
+                  </div>
+                  <div className="flex-1 text-center sm:text-left">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2">
+                      <h3 className="text-2xl font-black text-slate-900 tracking-tight">
+                        {student.name}
+                      </h3>
+                      <span className="px-3 py-1 bg-slate-900 text-white text-[9px] font-black uppercase tracking-[0.2em] rounded-full">
+                        {student.regNo || student.rollNo}
+                      </span>
+                    </div>
+                    <div className="flex flex-wrap justify-center sm:justify-start items-center gap-x-4 gap-y-2 text-sm font-bold text-slate-500">
+                      <span className="flex items-center gap-2">
+                        <span className="text-orange-500">📚</span> {student.course}
+                      </span>
+                      {student.stream && (
+                        <span className="flex items-center gap-2">
+                          <span className="text-blue-500">🎯</span> {student.stream}
+                        </span>
+                      )}
+                    </div>
+                    {(student.batch || student.section || student.phone) && (
+                      <div className="flex flex-wrap justify-center sm:justify-start items-center gap-3 mt-4">
+                        {student.batch && (
+                          <span className="px-3 py-1 bg-slate-50 border border-slate-100 rounded-xl text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                            Batch: {student.batch}
+                          </span>
+                        )}
+                        {student.section && (
+                          <span className="px-3 py-1 bg-slate-50 border border-slate-100 rounded-xl text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                            Section: {student.section}
+                          </span>
+                        )}
+                        {student.phone && (
+                          <span className="px-3 py-1 bg-slate-50 border border-slate-100 rounded-xl text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                            📞 {student.phone}
+                          </span>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* ── ERP Already Assigned card ── */}
             {erpHostelAssigned && erpHostelData ? (
               <div className="rounded-2xl border border-emerald-200 bg-emerald-50 overflow-hidden">
@@ -733,7 +808,7 @@ export default function HostelDashboard() {
                     { label: "Room Type", value: erpHostelData.roomType },
                     { label: "Room No", value: erpHostelData.roomNo },
                     { label: "Bed", value: erpHostelData.bedNo },
-                  ].map(({ label, value }) => (
+                  ].filter(i => i.value).map(({ label, value }) => (
                     <div key={label} className="bg-white rounded-xl p-4 border border-emerald-100 shadow-sm">
                       <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-1">
                         {label}
@@ -753,425 +828,429 @@ export default function HostelDashboard() {
             ) : (
               <>
 
-            {/* Status alert — inline, below title */}
-            {localStatus && (
-              <div
-                className="mb-6 rounded-2xl px-5 py-4 flex items-start gap-4 border"
-                style={{
-                  background:
-                    localStatus === "approved" || localStatus === "assigned"
-                      ? "#f0fdf4"
-                      : localStatus === "rejected"
-                        ? "#fff1f2"
-                        : localStatus === "reapplying"
-                          ? "#eff6ff"
-                          : "#fffbeb",
-                  borderColor:
-                    localStatus === "approved" || localStatus === "assigned"
-                      ? "#bbf7d0"
-                      : localStatus === "rejected"
-                        ? "#fecdd3"
-                        : localStatus === "reapplying"
-                          ? "#bfdbfe"
-                          : "#fde68a",
-                }}
-              >
-                <span className="text-2xl flex-shrink-0 mt-0.5">
-                  {localStatus === "approved" || localStatus === "assigned"
-                    ? "🎉"
-                    : localStatus === "rejected"
-                      ? "❌"
-                      : localStatus === "reapplying"
-                        ? "📝"
-                        : "⏳"}
-                </span>
-                <div>
-                  <p
-                    className="text-sm font-black uppercase tracking-wide"
-                    style={{
-                      color:
-                        localStatus === "approved" || localStatus === "assigned"
-                          ? "#15803d"
-                          : localStatus === "rejected"
-                            ? "#be123c"
-                            : localStatus === "reapplying"
-                              ? "#1d4ed8"
-                              : "#92400e",
-                    }}
-                  >
-                    {localStatus === "approved" || localStatus === "assigned"
-                      ? "Room Approved by Warden!"
-                      : localStatus === "rejected"
-                        ? "Application Rejected by Warden"
-                        : localStatus === "reapplying"
-                          ? "Re-applying Application"
-                          : localStatus === "reapplied"
-                            ? "Application Re-applied! Pending Review"
-                            : "Pending Warden Approval"}
-                  </p>
-                  {localStatus === "rejected" && rejectRemark && (
-                    <p className="text-xs text-rose-600 font-semibold mt-1">
-                      Reason: {rejectRemark}
-                    </p>
-                  )}
-                  {localStatus === "reapplying" && (
-                    <p className="text-xs text-blue-700 font-medium mt-0.5 opacity-75">
-                      Please update your details and submit again
-                    </p>
-                  )}
-                  {(localStatus === "pending" || localStatus === "reapplied") && (
-                    <p className="text-xs text-amber-700 font-medium mt-0.5 opacity-75">
-                      No changes allowed until reviewed
-                    </p>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {/* Progress bar */}
-            <div className="mb-8">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">
-                  Completion
-                </span>
-                <span
-                  className="text-[11px] font-black"
-                  style={{ color: ACCENT }}
-                >
-                  {filledCount}/{fields.length} Fields
-                </span>
-              </div>
-              <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
-                <div
-                  className="h-full rounded-full transition-all duration-500 ease-out"
-                  style={{
-                    width: `${progressPct}%`,
-                    background: `linear-gradient(90deg, rgb(237,128,65), rgb(255,160,90))`,
-                  }}
-                />
-              </div>
-            </div>
-
-            {/* Student card */}
-            <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5 mb-8 flex flex-col md:flex-row items-start md:items-center gap-4 relative overflow-hidden">
-              <div
-                className="absolute left-0 top-0 bottom-0 w-[4px] rounded-l-2xl"
-                style={{ background: ACCENT }}
-              />
-              <div className="flex items-center gap-4 w-full md:w-auto ml-1">
-                <div className="w-16 h-16 rounded-2xl overflow-hidden bg-slate-100 flex items-center justify-center text-3xl shadow-inner flex-shrink-0">
-                  {student?.photo ? (
-                    <img
-                      src={student.photo}
-                      className="w-full h-full object-cover"
-                      alt="student"
-                    />
-                  ) : (
-                    "🙎‍♂️"
-                  )}
-                </div>
-                <div className="flex-1 min-w-0 md:hidden">
-                  <p className="font-black text-slate-900 text-base truncate">
-                    {student?.name || "Student Profile"}
-                  </p>
-                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">
-                    {student?.regNo || urlRegNo}
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex-1 min-w-0 grid grid-cols-1 md:grid-cols-2 gap-4 w-full">
-                <div className="hidden md:block">
-                  <p className="font-black text-slate-900 text-base truncate">
-                    {student?.name || "Student Profile"}
-                  </p>
-                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">
-                    {student?.regNo || urlRegNo}
-                  </p>
-                  {(student?.course || student?.stream) && (
-                    <p className="text-[11px] text-slate-500 font-semibold mt-1 truncate">
-                      {student.course} • {student.stream}
-                    </p>
-                  )}
-                  {(student?.batch || student?.section) && (
-                    <p className="text-[10px] text-slate-400 font-bold mt-0.5">
-                      Batch: {student.batch} | Sec: {student.section}
-                    </p>
-                  )}
-                </div>
-                <div className="md:hidden">
-                  {(student?.course || student?.stream) && (
-                    <p className="text-[11px] text-slate-500 font-semibold mt-1 truncate">
-                      {student.course} • {student.stream}
-                    </p>
-                  )}
-                  {(student?.batch || student?.section) && (
-                    <p className="text-[10px] text-slate-400 font-bold mt-0.5">
-                      Batch: {student.batch} | Sec: {student.section}
-                    </p>
-                  )}
-                </div>
-
-                <div className="flex flex-col justify-center md:items-end gap-1.5 md:mt-0 pt-3 md:pt-0 border-t border-slate-100 md:border-none">
-                  {student?.phone && (
-                    <p className="text-[11px] text-slate-600 font-semibold flex items-center gap-2">
-                      <span className="text-sm">📞</span> {student.phone}
-                    </p>
-                  )}
-                </div>
-              </div>
-              {localStatus && (
-                <div className="flex-shrink-0 flex flex-col items-end gap-1">
-                  <span
-                    className="px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest"
+                {/* Status alert — inline, below title */}
+                {localStatus && (
+                  <div
+                    className="mb-6 rounded-2xl px-5 py-4 flex items-start gap-4 border"
                     style={{
                       background:
-                        localStatus === "rejected"
-                          ? "#fee2e2"
-                          : localStatus === "approved" ||
-                            localStatus === "assigned"
-                            ? "#ecfdf5"
-                            : ACCENT_LIGHT,
-                      color:
-                        localStatus === "rejected"
-                          ? "#dc2626"
-                          : localStatus === "approved" ||
-                            localStatus === "assigned"
-                            ? "#059669"
-                            : ACCENT,
+                        localStatus === "approved" || localStatus === "assigned"
+                          ? "#f0fdf4"
+                          : localStatus === "rejected"
+                            ? "#fff1f2"
+                            : localStatus === "reapplying"
+                              ? "#eff6ff"
+                              : "#fffbeb",
+                      borderColor:
+                        localStatus === "approved" || localStatus === "assigned"
+                          ? "#bbf7d0"
+                          : localStatus === "rejected"
+                            ? "#fecdd3"
+                            : localStatus === "reapplying"
+                              ? "#bfdbfe"
+                              : "#fde68a",
                     }}
                   >
-                    {localStatus}
-                  </span>
-                  {localStatus === "rejected" && rejectRemark && (
-                    <span className="text-[10px] text-red-500 font-bold text-right max-w-[160px] leading-tight">
-                      {rejectRemark}
+                    <span className="text-2xl flex-shrink-0 mt-0.5">
+                      {localStatus === "approved" || localStatus === "assigned"
+                        ? "🎉"
+                        : localStatus === "rejected"
+                          ? "❌"
+                          : localStatus === "reapplying"
+                            ? "📝"
+                            : "⏳"}
                     </span>
-                  )}
-                </div>
-              )}
-            </div>
-
-            {/* Form fields */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
-              {fields.map((field) => {
-                const meta = FIELD_META[field.name] || {
-                  icon: Icon.Hash,
-                  color: "#64748b",
-                };
-                const FieldIcon = meta.icon;
-                const val = (form as any)[field.name];
-                const filled = !!val;
-                return (
-                  <div key={field.name}>
-                    <label className="flex items-center gap-2 text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 pl-1">
-                      <span style={{ color: meta.color }}>
-                        <FieldIcon />
-                      </span>
-                      {field.label}
-                    </label>
-                    <div className="relative">
-                      <select
-                        name={field.name}
-                        value={val}
-                        onChange={handleChange}
-                        disabled={isLocked}
-                        className="w-full appearance-none rounded-xl pr-10 outline-none transition-all duration-200 text-sm font-bold text-slate-800"
+                    <div>
+                      <p
+                        className="text-sm font-black uppercase tracking-wide"
                         style={{
-                          padding: "0.875rem 2.5rem 0.875rem 1rem",
-                          background: filled ? "#fff" : "#f8fafc",
-                          border: filled
-                            ? `2px solid ${ACCENT}`
-                            : "2px solid #e2e8f0",
-                          boxShadow: filled
-                            ? `0 4px 20px rgba(237,128,65,0.12)`
-                            : "none",
-                          opacity: isLocked ? 0.65 : 1,
-                          cursor: isLocked ? "not-allowed" : "pointer",
+                          color:
+                            localStatus === "approved" || localStatus === "assigned"
+                              ? "#15803d"
+                              : localStatus === "rejected"
+                                ? "#be123c"
+                                : localStatus === "reapplying"
+                                  ? "#1d4ed8"
+                                  : "#92400e",
                         }}
                       >
-                        <option value="">Select {field.label}</option>
-                        {field.options.map((opt: string) => (
-                          <option key={opt} value={opt}>
-                            {opt}
-                          </option>
-                        ))}
-                      </select>
-                      <div className="absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none flex items-center gap-1.5">
-                        {filled && (
-                          <div
-                            className="w-2 h-2 rounded-full"
-                            style={{ background: ACCENT }}
-                          />
-                        )}
-                        <span className="text-slate-400">
-                          <Icon.ChevronDown />
-                        </span>
-                      </div>
+                        {localStatus === "approved" || localStatus === "assigned"
+                          ? "Room Approved by Warden!"
+                          : localStatus === "rejected"
+                            ? "Application Rejected by Warden"
+                            : localStatus === "reapplying"
+                              ? "Re-applying Application"
+                              : localStatus === "reapplied"
+                                ? "Application Re-applied! Pending Review"
+                                : "Pending Warden Approval"}
+                      </p>
+                      {localStatus === "rejected" && rejectRemark && (
+                        <p className="text-xs text-rose-600 font-semibold mt-1">
+                          Reason: {rejectRemark}
+                        </p>
+                      )}
+                      {localStatus === "reapplying" && (
+                        <p className="text-xs text-blue-700 font-medium mt-0.5 opacity-75">
+                          Please update your details and submit again
+                        </p>
+                      )}
+                      {(localStatus === "pending" || localStatus === "reapplied") && (
+                        <p className="text-xs text-amber-700 font-medium mt-0.5 opacity-75">
+                          No changes allowed until reviewed
+                        </p>
+                      )}
                     </div>
                   </div>
-                );
-              })}
-            </div>
+                )}
 
-            {/* Remark field — optional */}
-            <div className="mb-6">
-              <label className="flex items-center gap-2 text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 pl-1">
-                <span style={{ color: "#94a3b8" }}>
-                  <svg
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="1.8"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    className="w-4 h-4"
-                  >
-                    <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" />
-                  </svg>
-                </span>
-                Remark
-                <span className="text-slate-300 font-semibold normal-case tracking-normal">
-                  (optional)
-                </span>
-              </label>
-              <textarea
-                name="remark"
-                value={form.remark}
-                onChange={handleChange as any}
-                disabled={isLocked}
-                placeholder="Add remark..."
-                rows={2}
-                className="w-full rounded-xl outline-none resize-none text-sm font-semibold text-slate-800 transition-all duration-200"
-                style={{
-                  padding: "0.875rem 1rem",
-                  background: form.remark ? "#fff" : "#f8fafc",
-                  border: form.remark
-                    ? `2px solid ${ACCENT}`
-                    : "2px solid #e2e8f0",
-                  boxShadow: form.remark
-                    ? `0 4px 20px rgba(237,128,65,0.12)`
-                    : "none",
-                  opacity: isLocked ? 0.65 : 1,
-                  cursor: isLocked ? "not-allowed" : "text",
-                }}
-              />
-            </div>
-            {form.hostel && form.roomType && (
-              <div
-                className="mb-6 rounded-2xl p-4 border"
-                style={{ background: ACCENT_LIGHT, borderColor: ACCENT_MID }}
-              >
-                <p
-                  className="text-[9px] font-black uppercase tracking-widest mb-3"
-                  style={{ color: ACCENT }}
-                >
-                  ✦ Your Selection
-                </p>
-                <div className="flex flex-wrap gap-2">
-                  {[
-                    { label: "Wing", value: form.hostel },
-                    { label: "Type", value: form.roomType },
-                    ...(form.roomNo
-                      ? [{ label: "Room", value: form.roomNo }]
-                      : []),
-                    ...(form.bedNo
-                      ? [{ label: "Bed", value: form.bedNo }]
-                      : []),
-                  ].map((item) => (
-                    <div
-                      key={item.label}
-                      className="bg-white rounded-xl px-3.5 py-2 border border-orange-100 shadow-sm"
+                {/* Progress bar */}
+                <div className="mb-8">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                      Completion
+                    </span>
+                    <span
+                      className="text-[11px] font-black"
+                      style={{ color: ACCENT }}
                     >
-                      <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest">
-                        {item.label}
+                      {filledCount}/{fields.length} Fields
+                    </span>
+                  </div>
+                  <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
+                    <div
+                      className="h-full rounded-full transition-all duration-500 ease-out"
+                      style={{
+                        width: `${progressPct}%`,
+                        background: `linear-gradient(90deg, rgb(237,128,65), rgb(255,160,90))`,
+                      }}
+                    />
+                  </div>
+                </div>
+
+                {/* Student card */}
+                <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5 mb-8 flex flex-col md:flex-row items-start md:items-center gap-4 relative overflow-hidden">
+                  <div
+                    className="absolute left-0 top-0 bottom-0 w-[4px] rounded-l-2xl"
+                    style={{ background: ACCENT }}
+                  />
+                  <div className="flex items-center gap-4 w-full md:w-auto ml-1">
+                    <div className="w-16 h-16 rounded-2xl overflow-hidden bg-slate-100 flex items-center justify-center text-3xl shadow-inner flex-shrink-0">
+                      {student?.photo ? (
+                        <img
+                          src={student.photo}
+                          className="w-full h-full object-cover"
+                          alt="student"
+                        />
+                      ) : (
+                        "🙎‍♂️"
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0 md:hidden">
+                      <p className="font-black text-slate-900 text-base truncate">
+                        {student?.name || "Student Profile"}
                       </p>
-                      <p className="text-sm font-black text-slate-800">
-                        {item.value}
+                      <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">
+                        {student?.regNo || urlRegNo}
                       </p>
                     </div>
-                  ))}
+                  </div>
+
+                  <div className="flex-1 min-w-0 grid grid-cols-1 md:grid-cols-2 gap-4 w-full">
+                    <div className="hidden md:block">
+                      <p className="font-black text-slate-900 text-base truncate">
+                        {student?.name || "Student Profile"}
+                      </p>
+                      <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">
+                        {student?.regNo || urlRegNo}
+                      </p>
+                      {(student?.course || student?.stream) && (
+                        <p className="text-[11px] text-slate-500 font-semibold mt-1 truncate">
+                          {student.course} • {student.stream}
+                        </p>
+                      )}
+                      {(student?.batch || student?.section) && (
+                        <p className="text-[10px] text-slate-400 font-bold mt-0.5">
+                          Batch: {student.batch} | Sec: {student.section}
+                        </p>
+                      )}
+                    </div>
+                    <div className="md:hidden">
+                      {(student?.course || student?.stream) && (
+                        <p className="text-[11px] text-slate-500 font-semibold mt-1 truncate">
+                          {student.course} • {student.stream}
+                        </p>
+                      )}
+                      {(student?.batch || student?.section) && (
+                        <p className="text-[10px] text-slate-400 font-bold mt-0.5">
+                          Batch: {student.batch} | Sec: {student.section}
+                        </p>
+                      )}
+                    </div>
+
+                    <div className="flex flex-col justify-center md:items-end gap-1.5 md:mt-0 pt-3 md:pt-0 border-t border-slate-100 md:border-none">
+                      {student?.phone && (
+                        <p className="text-[11px] text-slate-600 font-semibold flex items-center gap-2">
+                          <span className="text-sm">📞</span> {student.phone}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                  {localStatus && (
+                    <div className="flex-shrink-0 flex flex-col items-end gap-1">
+                      <span
+                        className="px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest"
+                        style={{
+                          background:
+                            localStatus === "rejected"
+                              ? "#fee2e2"
+                              : localStatus === "approved" ||
+                                localStatus === "assigned"
+                                ? "#ecfdf5"
+                                : ACCENT_LIGHT,
+                          color:
+                            localStatus === "rejected"
+                              ? "#dc2626"
+                              : localStatus === "approved" ||
+                                localStatus === "assigned"
+                                ? "#059669"
+                                : ACCENT,
+                        }}
+                      >
+                        {localStatus === "assigned"
+                          ? "approved"
+                          : localStatus === "pending"
+                            ? "under review"
+                            : localStatus}
+                      </span>
+                      {localStatus === "rejected" && rejectRemark && (
+                        <span className="text-[10px] text-red-500 font-bold text-right max-w-[160px] leading-tight">
+                          {rejectRemark}
+                        </span>
+                      )}
+                    </div>
+                  )}
                 </div>
-              </div>
-            )}
 
-            {/* CTA button */}
-            {localStatus === "rejected" && !hasReapplied ? (
-              <button
-                onClick={() => {
-                  setLocalStatus("reapplying");
-                  setForm((prev) => ({
-                    ...prev,
-                    hostel: "",
-                    roomType: "",
-                    roomNo: "",
-                    bedNo: "",
-                    remark: "",
-                  }));
-                }}
-                className="w-full h-14 rounded-2xl font-black text-sm uppercase tracking-widest flex items-center justify-center gap-3 relative overflow-hidden transition-all duration-200"
-                style={{
-                  background: `linear-gradient(135deg, rgb(237,128,65), rgb(255,150,75))`,
-                  color: "white",
-                  boxShadow: `0 8px 32px rgba(237,128,65,0.38)`,
-                }}
-              >
-                <span>Re-apply as New</span>
-                <Icon.Arrow />
-              </button>
-            ) : (
-              <button
-                onClick={validateAndShowConfirm}
-                disabled={isLocked || loading}
-                className="w-full h-14 rounded-2xl font-black text-sm uppercase tracking-widest flex items-center justify-center gap-3 relative overflow-hidden transition-all duration-200"
-                style={{
-                  background: isLocked
-                    ? "#f1f5f9"
-                    : `linear-gradient(135deg, rgb(237,128,65), rgb(255,150,75))`,
-                  color: isLocked ? "#94a3b8" : "white",
-                  boxShadow: isLocked
-                    ? "none"
-                    : `0 8px 32px rgba(237,128,65,0.38)`,
-                  cursor: isLocked ? "not-allowed" : "pointer",
-                  transform: "translateY(0)",
-                }}
-                onMouseEnter={(e) => {
-                  if (!isLocked)
-                    (e.currentTarget as HTMLElement).style.transform =
-                      "translateY(-1px)";
-                }}
-                onMouseLeave={(e) => {
-                  (e.currentTarget as HTMLElement).style.transform =
-                    "translateY(0)";
-                }}
-              >
-                {isLocked ? (
-                  <>
-                    <Icon.Lock />
-                    <span>
-                      Application{" "}
-                      {localStatus === "approved" || localStatus === "assigned"
-                        ? "Finalized"
-                        : localStatus === "rejected"
-                          ? "Rejected Permanently"
-                          : "Under Review"}
+                {/* Form fields */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
+                  {fields.map((field) => {
+                    const meta = FIELD_META[field.name] || {
+                      icon: Icon.Hash,
+                      color: "#64748b",
+                    };
+                    const FieldIcon = meta.icon;
+                    const val = (form as any)[field.name];
+                    const filled = !!val;
+                    return (
+                      <div key={field.name}>
+                        <label className="flex items-center gap-2 text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 pl-1">
+                          <span style={{ color: meta.color }}>
+                            <FieldIcon />
+                          </span>
+                          {field.label}
+                        </label>
+                        <div className="relative">
+                          <select
+                            name={field.name}
+                            value={val}
+                            onChange={handleChange}
+                            disabled={isLocked}
+                            className="w-full appearance-none rounded-xl pr-10 outline-none transition-all duration-200 text-sm font-bold text-slate-800"
+                            style={{
+                              padding: "0.875rem 2.5rem 0.875rem 1rem",
+                              background: filled ? "#fff" : "#f8fafc",
+                              border: filled
+                                ? `2px solid ${ACCENT}`
+                                : "2px solid #e2e8f0",
+                              boxShadow: filled
+                                ? `0 4px 20px rgba(237,128,65,0.12)`
+                                : "none",
+                              opacity: isLocked ? 0.65 : 1,
+                              cursor: isLocked ? "not-allowed" : "pointer",
+                            }}
+                          >
+                            <option value="">Select {field.label}</option>
+                            {field.options.map((opt: string) => (
+                              <option key={opt} value={opt}>
+                                {opt}
+                              </option>
+                            ))}
+                          </select>
+                          <div className="absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none flex items-center gap-1.5">
+                            {filled && (
+                              <div
+                                className="w-2 h-2 rounded-full"
+                                style={{ background: ACCENT }}
+                              />
+                            )}
+                            <span className="text-slate-400">
+                              <Icon.ChevronDown />
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Remark field — optional */}
+                <div className="mb-6">
+                  <label className="flex items-center gap-2 text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 pl-1">
+                    <span style={{ color: "#94a3b8" }}>
+                      <svg
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="1.8"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        className="w-4 h-4"
+                      >
+                        <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" />
+                      </svg>
                     </span>
-                  </>
-                ) : loading ? (
-                  <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                ) : (
-                  <>
-                    <span>Request Allocation</span>
-                    <Icon.Arrow />
-                  </>
+                    Remark
+                    <span className="text-slate-300 font-semibold normal-case tracking-normal">
+                      (optional)
+                    </span>
+                  </label>
+                  <textarea
+                    name="remark"
+                    value={form.remark}
+                    onChange={handleChange as any}
+                    disabled={isLocked}
+                    placeholder="Add remark..."
+                    rows={2}
+                    className="w-full rounded-xl outline-none resize-none text-sm font-semibold text-slate-800 transition-all duration-200"
+                    style={{
+                      padding: "0.875rem 1rem",
+                      background: form.remark ? "#fff" : "#f8fafc",
+                      border: form.remark
+                        ? `2px solid ${ACCENT}`
+                        : "2px solid #e2e8f0",
+                      boxShadow: form.remark
+                        ? `0 4px 20px rgba(237,128,65,0.12)`
+                        : "none",
+                      opacity: isLocked ? 0.65 : 1,
+                      cursor: isLocked ? "not-allowed" : "text",
+                    }}
+                  />
+                </div>
+                {form.hostel && form.roomType && (
+                  <div
+                    className="mb-6 rounded-2xl p-4 border"
+                    style={{ background: ACCENT_LIGHT, borderColor: ACCENT_MID }}
+                  >
+                    <p
+                      className="text-[9px] font-black uppercase tracking-widest mb-3"
+                      style={{ color: ACCENT }}
+                    >
+                      ✦ Your Selection
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      {[
+                        { label: "Wing", value: form.hostel },
+                        { label: "Type", value: form.roomType },
+                        ...(form.roomNo
+                          ? [{ label: "Room", value: form.roomNo }]
+                          : []),
+                        ...(form.bedNo
+                          ? [{ label: "Bed", value: form.bedNo }]
+                          : []),
+                      ].map((item) => (
+                        <div
+                          key={item.label}
+                          className="bg-white rounded-xl px-3.5 py-2 border border-orange-100 shadow-sm"
+                        >
+                          <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest">
+                            {item.label}
+                          </p>
+                          <p className="text-sm font-black text-slate-800">
+                            {item.value}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
                 )}
-              </button>
-            )}
 
-            <p className="text-center text-[10px] text-slate-400 font-medium mt-4 leading-relaxed">
-              Subject to Warden approval · Cannot be modified after submission
-            </p>
-            </>
+                {/* CTA button */}
+                {localStatus === "rejected" && !hasReapplied ? (
+                  <button
+                    onClick={() => {
+                      setLocalStatus("reapplying");
+                      setForm((prev) => ({
+                        ...prev,
+                        hostel: "",
+                        roomType: "",
+                        roomNo: "",
+                        bedNo: "",
+                        remark: "",
+                      }));
+                    }}
+                    className="w-full h-14 rounded-2xl font-black text-sm uppercase tracking-widest flex items-center justify-center gap-3 relative overflow-hidden transition-all duration-200"
+                    style={{
+                      background: `linear-gradient(135deg, rgb(237,128,65), rgb(255,150,75))`,
+                      color: "white",
+                      boxShadow: `0 8px 32px rgba(237,128,65,0.38)`,
+                    }}
+                  >
+                    <span>Re-apply as New</span>
+                    <Icon.Arrow />
+                  </button>
+                ) : (
+                  <button
+                    onClick={validateAndShowConfirm}
+                    disabled={isLocked || loading}
+                    className="w-full h-14 rounded-2xl font-black text-sm uppercase tracking-widest flex items-center justify-center gap-3 relative overflow-hidden transition-all duration-200"
+                    style={{
+                      background: isLocked
+                        ? "#f1f5f9"
+                        : `linear-gradient(135deg, rgb(237,128,65), rgb(255,150,75))`,
+                      color: isLocked ? "#94a3b8" : "white",
+                      boxShadow: isLocked
+                        ? "none"
+                        : `0 8px 32px rgba(237,128,65,0.38)`,
+                      cursor: isLocked ? "not-allowed" : "pointer",
+                      transform: "translateY(0)",
+                    }}
+                    onMouseEnter={(e) => {
+                      if (!isLocked)
+                        (e.currentTarget as HTMLElement).style.transform =
+                          "translateY(-1px)";
+                    }}
+                    onMouseLeave={(e) => {
+                      (e.currentTarget as HTMLElement).style.transform =
+                        "translateY(0)";
+                    }}
+                  >
+                    {isLocked ? (
+                      <>
+                        <Icon.Lock />
+                        <span>
+                          Application{" "}
+                          {localStatus === "approved" || localStatus === "assigned"
+                            ? "Finalized"
+                            : localStatus === "rejected"
+                              ? "Rejected Permanently"
+                              : "Under Review"}
+                        </span>
+                      </>
+                    ) : loading ? (
+                      <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    ) : (
+                      <>
+                        <span>Request Allocation</span>
+                        <Icon.Arrow />
+                      </>
+                    )}
+                  </button>
+                )}
+
+                <p className="text-center text-[10px] text-slate-400 font-medium mt-4 leading-relaxed">
+                  Subject to Warden approval · Cannot be modified after submission
+                </p>
+              </>
             )}
           </div>
         </main>

@@ -31,6 +31,8 @@ export default function WardenDashboard() {
   const [students, setStudents] = useState<StudentRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [dateFilter, setDateFilter] = useState("");
 
   const [selectedStudent, setSelectedStudent] = useState<StudentRecord | null>(
     null,
@@ -46,12 +48,16 @@ export default function WardenDashboard() {
   const [showRejectBox, setShowRejectBox] = useState(false);
 
   const [processingId, setProcessingId] = useState<string | null>(null);
+  const [showErpConfirm, setShowErpConfirm] = useState(false);
+  const [erpPushData, setErpPushData] = useState<StudentRecord | null>(null);
+
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<any>(null);
+  const [isModalEditing, setIsModalEditing] = useState(false);
   const [availableRooms, setAvailableRooms] = useState<any[]>([]);
 
-  const ENTITY_ID = "6608ec3120337200120f347e";
+  const ENTITY_ID = "5ea04b2f774faa5d67505ab2";
 
   const fetchAllStudents = async () => {
     setLoading(true);
@@ -141,11 +147,21 @@ export default function WardenDashboard() {
   };
 
   const handleAssignToERP = async (student: StudentRecord) => {
-    const confirmAssign = window.confirm(
-      `Permanently assign ${student.regNumber} specifically in the ERP?`,
-    );
-    if (!confirmAssign) return;
+    if (!student.startDate || !student.endDate) {
+      alert("Cannot assign to ERP: Start Date and End Date must be set first. Please approve the application properly.");
+      return;
+    }
+
+    setErpPushData(student);
+    setShowErpConfirm(true);
+  };
+
+  const executeERPPush = async () => {
+    if (!erpPushData) return;
+    const student = erpPushData;
+    setShowErpConfirm(false);
     setProcessingId(student._id);
+
     try {
       const erpStudent = await hostelService.getStudentDetails({
         id: "689441d9d2b728001069ebe7",
@@ -180,7 +196,7 @@ export default function WardenDashboard() {
         beds: selectedRoom.beds || [],
         entity: ENTITY_ID,
         hostelEndDate: new Date(student.endDate).getTime(),
-        hostelPaymentFrequency: student.paymentFreq || "Standard",
+        hostelPaymentFrequency: student.paymentFreq,
         hostelRoomBedName: student.bedNo,
         hostelRoomId: selectedRoom._id,
         hostelRoomName: student.roomNo,
@@ -190,19 +206,24 @@ export default function WardenDashboard() {
         skipInstallments: [],
         studentId: erpStudent._id,
       };
-      await hostelService.assignHostelRoom(payload);
+      const res = await hostelService.assignHostelRoom(payload);
+      console.log("ERP Response:", res);
+
       await hostelService.updateStudentInDB(student.regNumber, {
         status: "assigned",
       });
       alert("ERP Allocation successful.");
       await fetchAllStudents();
+      setErpPushData(null);
+      closeModal();
     } catch (error) {
       console.error("Assignment Error:", error);
-      alert("Application could not be pushed to ERP.");
+      alert("Application could not be pushed to ERP. Check console for details.");
     } finally {
       setProcessingId(null);
     }
   };
+
 
   const handleStudentClick = async (student: StudentRecord) => {
     setSelectedStudent(student);
@@ -231,28 +252,51 @@ export default function WardenDashboard() {
     setSelectedStudent(null);
     setShowRejectBox(false);
     setRejectRemark("");
+    setIsModalEditing(false);
   };
 
-  const handleApprove = async () => {
-    if (!selectedStudent) return;
-    if (!approveStartDate || !approveEndDate || !approvePaymentFreq) {
-      alert(
-        "Please set Start Date, End Date and Payment Frequency before approving.",
-      );
-      return;
+  const getFilteredBeds = (roomName: string, currentStudentId: string | undefined) => {
+    const room = availableRooms.find((r: any) => r.roomName === roomName);
+    if (!room || !room.beds) return [];
+
+    const takenBeds = students
+      .filter(
+        (s) =>
+          s.roomNo === roomName &&
+          s._id !== currentStudentId &&
+          (s.status === "pending" || s.status === "approved" || s.status === "assigned"),
+      )
+      .map((s) => s.bedNo);
+
+    return room.beds.filter((b: any) => !takenBeds.includes(b.bedName) && b.bedStatus !== "Assigned");
+  };
+
+  const getFilteredRooms = (currentStudentId: string | undefined) => {
+    const roomNames = Array.from(new Set(availableRooms.map((r: any) => r.roomName)));
+    return roomNames.filter((rn) => getFilteredBeds(rn, currentStudentId).length > 0);
+  };
+
+  const handleModalEditToggle = () => {
+    if (!isModalEditing) {
+      setEditForm({ ...selectedStudent });
+      fetchMasterData();
+      if (selectedStudent) {
+        fetchRoomsForEdit(selectedStudent.wing, selectedStudent.roomType, selectedStudent.session);
+      }
     }
-    setProcessingId(selectedStudent._id);
+    setIsModalEditing(!isModalEditing);
+  };
+
+  const handleModalSave = async () => {
+    if (!editForm) return;
+    setProcessingId(editForm._id);
     try {
-      await hostelService.updateStudentInDB(selectedStudent.regNumber, {
-        status: "approved",
-        startDate: approveStartDate,
-        endDate: approveEndDate,
-        paymentFreq: approvePaymentFreq,
-      });
+      await hostelService.updateStudentInDB(editForm.regNumber, editForm);
+      setSelectedStudent(editForm);
       await fetchAllStudents();
-      closeModal();
+      setIsModalEditing(false);
     } catch {
-      alert("Failed to approve.");
+      alert("Failed to update record.");
     } finally {
       setProcessingId(null);
     }
@@ -279,13 +323,20 @@ export default function WardenDashboard() {
     }
   };
 
-  const filteredStudents = students.filter(
-    (s) =>
+  const filteredStudents = students.filter((s) => {
+    const matchesSearch =
       s.regNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
       (s.name || "").toLowerCase().includes(searchTerm.toLowerCase()) ||
       (s.roomNo || "").toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (s.wing || "").toLowerCase().includes(searchTerm.toLowerCase()),
-  );
+      (s.wing || "").toLowerCase().includes(searchTerm.toLowerCase());
+
+    const matchesStatus = statusFilter === "all" || s.status === statusFilter;
+
+    // Compare date part only (YYYY-MM-DD)
+    const matchesDate = !dateFilter || (s.applyDate && s.applyDate.startsWith(dateFilter));
+
+    return matchesSearch && matchesStatus && matchesDate;
+  });
 
   const formatDate = (dateStr: string) => {
     if (!dateStr) return "—";
@@ -314,6 +365,101 @@ export default function WardenDashboard() {
 
   return (
     <div className="min-h-screen bg-[#f1f5f9] p-4 md:p-8 font-sans transition-all">
+      {/* ERP Push Confirmation Modal */}
+      {showErpConfirm && erpPushData && (
+        <div className="fixed inset-0 z-[600] flex items-center justify-center p-4">
+          <div
+            className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm animate-fadeIn"
+            onClick={() => setShowErpConfirm(false)}
+          />
+          <div className="bg-white rounded-[2.5rem] w-full max-w-md relative z-10 shadow-[0_50px_100px_rgba(0,0,0,0.25)] border border-slate-100 overflow-hidden animate-slideUp">
+            {/* Header */}
+            <div className="bg-indigo-600 px-8 py-10 text-white relative overflow-hidden">
+              <div className="absolute top-0 right-0 -mr-10 -mt-10 w-40 h-40 bg-white/10 rounded-full blur-3xl" />
+              <div className="relative z-10">
+                <div className="w-12 h-12 bg-white/20 rounded-2xl flex items-center justify-center mb-4 backdrop-blur-md">
+                  <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                  </svg>
+                </div>
+                <h3 className="text-2xl font-black tracking-tight leading-tight">Final ERP Review</h3>
+                <p className="text-indigo-100 text-xs font-bold uppercase tracking-widest mt-2 opacity-80">Check details before pushing</p>
+              </div>
+            </div>
+
+            {/* Content */}
+            <div className="p-8">
+              <div className="space-y-6">
+                {/* Student Info */}
+                <div className="flex items-center gap-4 p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                  <div className="w-10 h-10 bg-indigo-100 rounded-full flex items-center justify-center text-lg font-black text-indigo-600">
+                    {erpPushData.name?.[0] || erpPushData.regNumber[0]}
+                  </div>
+                  <div>
+                    <p className="text-sm font-black text-slate-900">{erpPushData.name}</p>
+                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">{erpPushData.regNumber}</p>
+                  </div>
+                </div>
+
+                {/* Allocation Details */}
+                <div className="grid grid-cols-2 gap-3">
+                  {[
+                    { label: "Wing", value: erpPushData.wing, icon: "🏢" },
+                    { label: "Room", value: erpPushData.roomNo, icon: "🚪" },
+                    { label: "Bed", value: erpPushData.bedNo, icon: "🛏️" },
+                    { label: "Frequency", value: erpPushData.paymentFreq, icon: "💳" }
+                  ].map((item) => (
+                    <div key={item.label} className="p-3 bg-slate-50 rounded-xl border border-slate-100">
+                      <p className="text-[8px] font-black uppercase tracking-widest text-slate-400 mb-1 flex items-center gap-1">
+                        <span>{item.icon}</span> {item.label}
+                      </p>
+                      <p className="text-xs font-black text-slate-800">{item.value}</p>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Dates */}
+                <div className="p-4 bg-amber-50 rounded-2xl border border-amber-100 flex items-center justify-between">
+                  <div>
+                    <p className="text-[8px] font-black uppercase tracking-widest text-amber-600 mb-1">Start Date</p>
+                    <p className="text-xs font-black text-slate-800">{formatDate(erpPushData.startDate)}</p>
+                  </div>
+                  <div className="w-8 h-[1px] bg-amber-200" />
+                  <div className="text-right">
+                    <p className="text-[8px] font-black uppercase tracking-widest text-amber-600 mb-1">End Date</p>
+                    <p className="text-xs font-black text-slate-800">{formatDate(erpPushData.endDate)}</p>
+                  </div>
+                </div>
+
+                <div className="flex items-start gap-3 p-3 bg-red-50 rounded-xl border border-red-100">
+                  <span className="text-base">⚠️</span>
+                  <p className="text-[10px] font-bold text-red-700 leading-relaxed uppercase tracking-tight">
+                    Warning: This will permanently update the ERP system. Ensure all details are correct.
+                  </p>
+                </div>
+              </div>
+
+              {/* Actions */}
+              <div className="grid grid-cols-2 gap-4 mt-8">
+                <button
+                  onClick={() => setShowErpConfirm(false)}
+                  className="py-4 bg-slate-100 text-slate-500 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-200 transition-all active:scale-95"
+                >
+                  Go Back
+                </button>
+                <button
+                  onClick={executeERPPush}
+                  className="py-4 bg-indigo-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-indigo-700 transition-all active:scale-95 shadow-xl shadow-indigo-100"
+                >
+                  Confirm & Push
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+
       {/* Header */}
       <div className="max-w-7xl mx-auto mb-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div>
@@ -353,6 +499,27 @@ export default function WardenDashboard() {
                 d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
               />
             </svg>
+          </div>
+
+          <div className="flex gap-2">
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              className="px-4 py-3 bg-white border-2 border-slate-200 rounded-2xl text-[10px] font-black uppercase tracking-widest outline-none focus:border-red-500/50 shadow-xl shadow-slate-200/20 transition-all cursor-pointer"
+            >
+              <option value="all">All Status</option>
+              <option value="pending">Pending</option>
+              <option value="approved">Approved</option>
+              <option value="assigned">Assigned</option>
+              <option value="rejected">Rejected</option>
+            </select>
+
+            <input
+              type="date"
+              value={dateFilter}
+              onChange={(e) => setDateFilter(e.target.value)}
+              className="px-4 py-3 bg-white border-2 border-slate-200 rounded-2xl text-[10px] font-black uppercase tracking-widest outline-none focus:border-red-500/50 shadow-xl shadow-slate-200/20 transition-all"
+            />
           </div>
         </div>
       </div>
@@ -440,6 +607,19 @@ export default function WardenDashboard() {
                     </span>
                     <span>·</span>
                     <span>Applied: {formatDate(selectedStudent.applyDate)}</span>
+                    <span
+                      className={`ml-3 inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase ${statusColor(selectedStudent.status)}`}
+                    >
+                      <div
+                        className={`w-1 h-1 rounded-full ${statusDot(selectedStudent.status)}`}
+                      />
+                      {selectedStudent.status || "pending"}
+                    </span>
+                    {selectedStudent.rejectRemark && (
+                      <span className="ml-2 text-[10px] text-red-500 font-bold uppercase tracking-tight">
+                        · {selectedStudent.rejectRemark}
+                      </span>
+                    )}
                   </div>
 
                   {(selectedErpStudent?.course || selectedErpStudent?.stream) && (
@@ -448,7 +628,7 @@ export default function WardenDashboard() {
                       {selectedErpStudent.stream ? ` • ${selectedErpStudent.stream}` : ""}
                     </p>
                   )}
-                  
+
                   <div className="flex flex-wrap gap-x-4 gap-y-2 text-[11px] font-semibold text-slate-500">
                     {selectedErpStudent?.batch && (
                       <span className="bg-slate-50 px-2 py-0.5 rounded border border-slate-100">
@@ -486,154 +666,231 @@ export default function WardenDashboard() {
                   </svg>
                 </button>
               </div>
-              <div className="p-8">
-                <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-4">
-                  Application Details
-                </h3>
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-6">
-                  {[
-                    { label: "Session", value: selectedStudent.session },
-                    { label: "Wing", value: selectedStudent.wing },
-                    { label: "Room Type", value: selectedStudent.roomType },
-                    { label: "Room No", value: selectedStudent.roomNo },
-                    { label: "Bed No", value: selectedStudent.bedNo },
-                    { label: "Remark", value: selectedStudent.remark || "—" },
-                  ].map(({ label, value }) => (
-                    <div
-                      key={label}
-                      className="bg-slate-50 rounded-2xl p-3 border border-slate-100"
-                    >
-                      <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-1">
-                        {label}
-                      </p>
-                      <p className="text-sm font-black text-slate-800">
-                        {value || "—"}
-                      </p>
-                    </div>
-                  ))}
-                </div>
-
-                <div className="mb-6 flex items-center gap-3 flex-wrap">
-                  <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">
-                    Current Status:
-                  </span>
-                  <span
-                    className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase ${statusColor(selectedStudent.status)}`}
+              <div className="p-5">
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-[9px] font-black uppercase tracking-widest text-slate-400">
+                    Application Details
+                  </h3>
+                  <button
+                    onClick={handleModalEditToggle}
+                    className="text-[10px] font-black uppercase tracking-widest text-red-500 hover:text-red-600 transition-colors"
                   >
-                    <div
-                      className={`w-1.5 h-1.5 rounded-full ${statusDot(selectedStudent.status)}`}
-                    />
-                    {selectedStudent.status || "pending"}
-                  </span>
-                  {selectedStudent.rejectRemark && (
-                    <span className="text-xs text-red-500 font-bold">
-                      · {selectedStudent.rejectRemark}
-                    </span>
+                    {isModalEditing ? "Cancel" : "Edit"}
+                  </button>
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mb-4">
+                  {isModalEditing ? (
+                    <>
+                      {/* Editable Fields in Modal */}
+                      <div className="bg-slate-50 rounded-2xl p-3 border border-slate-100">
+                        <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-1">Session</p>
+                        <p className="text-sm font-black text-slate-800">{editForm.session}</p>
+                      </div>
+                      <div className="bg-slate-50 rounded-2xl p-3 border border-slate-100">
+                        <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-1">Wing</p>
+                        <select
+                          className="w-full text-sm font-black bg-transparent outline-none"
+                          value={editForm.wing}
+                          onChange={(e) => setEditForm({ ...editForm, wing: e.target.value })}
+                        >
+                          {masterData?.hostel.map(h => <option key={h} value={h}>{h}</option>)}
+                        </select>
+                      </div>
+                      <div className="bg-slate-50 rounded-2xl p-3 border border-slate-100">
+                        <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-1">Room Type</p>
+                        <select
+                          className="w-full text-sm font-black bg-transparent outline-none"
+                          value={editForm.roomType}
+                          onChange={(e) => setEditForm({ ...editForm, roomType: e.target.value })}
+                        >
+                          {masterData?.roomType.map(rt => <option key={rt} value={rt}>{rt}</option>)}
+                        </select>
+                      </div>
+                      <div className="bg-slate-50 rounded-2xl p-3 border border-slate-100">
+                        <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-1">Room No</p>
+                        <select
+                          className="w-full text-xs font-black bg-transparent outline-none"
+                          value={editForm?.roomNo || ""}
+                          onChange={(e) => setEditForm({ ...editForm, roomNo: e.target.value })}
+                        >
+                          {editForm && getFilteredRooms(editForm._id).map((rn: any) => (
+                            <option key={rn} value={rn}>{rn}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="bg-slate-50 rounded-xl p-2 border border-slate-100">
+                        <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-1">Bed No</p>
+                        <select
+                          className="w-full text-xs font-black bg-transparent outline-none"
+                          value={editForm?.bedNo || ""}
+                          onChange={(e) => setEditForm({ ...editForm, bedNo: e.target.value })}
+                        >
+                          {editForm && getFilteredBeds(editForm.roomNo, editForm._id).map((b: any) => (
+                            <option key={b.bedName} value={b.bedName}>{b.bedName}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="bg-slate-50 rounded-2xl p-3 border border-slate-100 col-span-2 sm:col-span-3">
+                        <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-1">Remark</p>
+                        <p className="text-sm font-black text-slate-800">{editForm?.remark || "—"}</p>
+                      </div>
+                      <div className="col-span-2 sm:col-span-3">
+                        <button
+                          onClick={handleModalSave}
+                          className="w-full bg-slate-900 text-white py-2 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-black transition-all"
+                        >
+                          {processingId ? "Saving..." : "Save Changes"}
+                        </button>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      {[
+                        { label: "Session", value: selectedStudent?.session },
+                        { label: "Wing", value: selectedStudent?.wing },
+                        { label: "Room Type", value: selectedStudent?.roomType },
+                        { label: "Room No", value: selectedStudent?.roomNo },
+                        { label: "Bed No", value: selectedStudent?.bedNo },
+                        { label: "Remark", value: selectedStudent?.remark || "—" },
+                      ].map(({ label, value }) => (
+                        <div
+                          key={label}
+                          className={`bg-slate-50 rounded-xl p-2.5 border border-slate-100 ${label === "Remark" ? "col-span-2 sm:col-span-3" : ""}`}
+                        >
+                          <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-0.5">
+                            {label}
+                          </p>
+                          <p className="text-xs font-black text-slate-800 leading-tight">
+                            {value || "—"}
+                          </p>
+                        </div>
+                      ))}
+                    </>
                   )}
                 </div>
 
                 {selectedStudent.status === "pending" && (
-                  <div className="border border-slate-100 rounded-2xl p-5">
-                    {/* Date + Payment row */}
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
-                      <div>
-                        <label className="text-[9px] font-black uppercase tracking-widest text-slate-400 block mb-1">
-                          Start Date
-                        </label>
-                        <input
-                          type="date"
-                          value={approveStartDate}
-                          onChange={(e) => setApproveStartDate(e.target.value)}
-                          className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs font-bold outline-none focus:border-slate-400 transition-all"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-[9px] font-black uppercase tracking-widest text-slate-400 block mb-1">
-                          End Date
-                        </label>
-                        <input
-                          type="date"
-                          value={approveEndDate}
-                          onChange={(e) => setApproveEndDate(e.target.value)}
-                          className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs font-bold outline-none focus:border-slate-400 transition-all"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-[9px] font-black uppercase tracking-widest text-slate-400 block mb-1">
-                          Payment Frequency
-                        </label>
-                        <select
-                          value={approvePaymentFreq}
-                          onChange={(e) => setApprovePaymentFreq(e.target.value)}
-                          className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs font-bold outline-none focus:border-slate-400 transition-all bg-white"
-                        >
-                          <option value="">Select...</option>
-                          {masterData?.paymentFrequency?.map((pf) => (
-                            <option key={pf} value={pf}>{pf}</option>
-                          )) || (
-                            <>
-                              <option value="Monthly">Monthly</option>
-                              <option value="Quarterly">Quarterly</option>
-                              <option value="Half Yearly">Half Yearly</option>
-                              <option value="Yearly">Yearly</option>
-                            </>
-                          )}
-                        </select>
-                      </div>
-                    </div>
-
-                    {/* Reject remark (expands inline) */}
-                    {showRejectBox && (
-                      <div className="mb-4">
-                        <label className="text-[9px] font-black uppercase tracking-widest text-slate-400 block mb-1">
-                          Rejection Reason *
-                        </label>
+                  <div className="mt-4 pt-4 border-t border-slate-100 animate-slideUp">
+                    <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-4 flex items-center gap-2">
+                      <span className="w-1.5 h-1.5 rounded-full bg-indigo-500" />
+                      Final ERP Configuration
+                    </p>
+                    {showRejectBox ? (
+                      <div className="space-y-3">
                         <textarea
                           value={rejectRemark}
                           onChange={(e) => setRejectRemark(e.target.value)}
-                          placeholder="Enter reason for rejection..."
+                          placeholder="Reason for rejection..."
+                          className="w-full p-3 border border-red-100 rounded-xl text-xs font-bold bg-red-50/30 outline-none focus:ring-2 focus:ring-red-100 transition-all resize-none"
                           rows={2}
-                          className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs font-bold outline-none focus:border-red-300 transition-all resize-none"
                         />
-                      </div>
-                    )}
-
-                    {/* Action buttons */}
-                    <div className="flex gap-3 flex-wrap">
-                      {!showRejectBox ? (
-                        <>
-                          <button
-                            onClick={handleApprove}
-                            disabled={!!processingId}
-                            className="bg-emerald-600 text-white px-6 py-2.5 rounded-xl text-[11px] font-black uppercase tracking-widest hover:bg-emerald-700 active:scale-95 transition-all disabled:grayscale disabled:cursor-not-allowed"
-                          >
-                            {processingId ? "Processing..." : "✓ Approve"}
-                          </button>
-                          <button
-                            onClick={() => setShowRejectBox(true)}
-                            className="border border-slate-200 text-slate-500 px-6 py-2.5 rounded-xl text-[11px] font-black uppercase tracking-widest hover:border-red-300 hover:text-red-500 transition-all"
-                          >
-                            ✗ Reject
-                          </button>
-                        </>
-                      ) : (
-                        <>
+                        <div className="flex gap-2">
                           <button
                             onClick={handleReject}
                             disabled={!!processingId || !rejectRemark.trim()}
-                            className="bg-red-600 text-white px-6 py-2.5 rounded-xl text-[11px] font-black uppercase tracking-widest hover:bg-red-700 active:scale-95 transition-all disabled:grayscale disabled:cursor-not-allowed"
+                            className="bg-red-600 text-white px-5 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest hover:bg-red-700 transition-all disabled:grayscale"
                           >
                             {processingId ? "Processing..." : "Confirm Reject"}
                           </button>
                           <button
-                            onClick={() => { setShowRejectBox(false); setRejectRemark(""); }}
-                            className="border border-slate-200 text-slate-400 px-5 py-2.5 rounded-xl text-[11px] font-black uppercase tracking-widest hover:text-slate-600 transition-all"
+                            onClick={() => setShowRejectBox(false)}
+                            className="border border-slate-200 text-slate-400 px-5 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest hover:text-slate-600 transition-all"
                           >
                             Cancel
                           </button>
-                        </>
-                      )}
-                    </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="space-y-4">
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                          <div className="bg-slate-50 rounded-xl p-3 border border-slate-100">
+                            <label className="text-[8px] font-black uppercase tracking-widest text-slate-400 block mb-1">
+                              Start Date
+                            </label>
+                            <input
+                              type="date"
+                              className="w-full bg-transparent text-xs font-bold outline-none"
+                              value={approveStartDate}
+                              onChange={(e) => setApproveStartDate(e.target.value)}
+                            />
+                          </div>
+                          <div className="bg-slate-50 rounded-xl p-3 border border-slate-100">
+                            <label className="text-[8px] font-black uppercase tracking-widest text-slate-400 block mb-1">
+                              End Date
+                            </label>
+                            <input
+                              type="date"
+                              className="w-full bg-transparent text-xs font-bold outline-none"
+                              value={approveEndDate}
+                              onChange={(e) => setApproveEndDate(e.target.value)}
+                            />
+                          </div>
+                          <div className="bg-slate-50 rounded-xl p-3 border border-slate-100">
+                            <label className="text-[8px] font-black uppercase tracking-widest text-slate-400 block mb-1">
+                              Frequency
+                            </label>
+                            <select
+                              className="w-full bg-transparent text-xs font-bold outline-none"
+                              value={approvePaymentFreq}
+                              onChange={(e) => setApprovePaymentFreq(e.target.value)}
+                            >
+                              <option value="">Select Frequency</option>
+                              {masterData?.paymentFrequency.map((pf) => (
+                                <option key={pf} value={pf}>
+                                  {pf}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={async () => {
+                              if (!selectedStudent) return;
+                              if (!approveStartDate || !approveEndDate || !approvePaymentFreq) {
+                                alert("Please set the dates and frequency first.");
+                                return;
+                              }
+                              const updatedStudent = {
+                                ...selectedStudent,
+                                startDate: approveStartDate,
+                                endDate: approveEndDate,
+                                paymentFreq: approvePaymentFreq,
+                              };
+                              await handleAssignToERP(updatedStudent);
+                            }}
+                            disabled={!!processingId}
+                            className="flex-1 bg-indigo-600 text-white py-3 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-indigo-700 active:scale-[0.98] transition-all shadow-lg shadow-indigo-100 flex items-center justify-center gap-2"
+                          >
+                            {processingId ? (
+                              <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                            ) : (
+                              <>
+                                <span>Finalize & Push to ERP</span>
+                                <svg
+                                  viewBox="0 0 24 24"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  strokeWidth="2.5"
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  className="w-3 h-3"
+                                >
+                                  <path d="M5 12h14M12 5l7 7-7 7" />
+                                </svg>
+                              </>
+                            )}
+                          </button>
+                          <button
+                            onClick={() => setShowRejectBox(true)}
+                            className="bg-red-50 text-red-600 border border-red-100 px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-red-600 hover:text-white transition-all"
+                          >
+                            Reject
+                          </button>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -705,15 +962,19 @@ export default function WardenDashboard() {
                     className={`transition-all ${editingId === student._id ? "bg-red-50/50 ring-1 ring-inset ring-red-100" : "hover:bg-white"}`}
                   >
                     <td className="px-8 py-6">
+                      <div className="text-[10px] text-orange-500 font-black uppercase tracking-[0.2em] mb-1.5 flex items-center gap-2">
+                        <span className="w-2 h-2 bg-orange-500 rounded-full animate-pulse" />
+                        {formatDate(student.applyDate)}
+                      </div>
                       <div className="font-black text-slate-900 text-lg leading-none">
                         {student.regNumber}
                       </div>
                       {student.name && (
-                        <div className="text-xs text-slate-600 font-semibold mt-0.5">
+                        <div className="text-xs text-slate-600 font-bold mt-1">
                           {student.name}
                         </div>
                       )}
-                      <div className="text-[10px] text-slate-400 font-black mt-1 uppercase">
+                      <div className="text-[9px] text-slate-400 font-black mt-2 uppercase bg-slate-50 px-2 py-0.5 rounded-md inline-block">
                         {student.session}
                       </div>
                     </td>
@@ -764,11 +1025,11 @@ export default function WardenDashboard() {
                       )}
                     </td>
                     <td className="px-8 py-6">
-                      {editingId === student._id ? (
+                      {editingId === student._id && editForm ? (
                         <div className="flex flex-col gap-2">
                           <select
                             className="text-[11px] font-bold border border-slate-200 rounded-lg p-1"
-                            value={editForm.roomNo}
+                            value={editForm.roomNo || ""}
                             onChange={(e) =>
                               setEditForm({
                                 ...editForm,
@@ -777,11 +1038,7 @@ export default function WardenDashboard() {
                             }
                           >
                             <option value="">Room</option>
-                            {Array.from(
-                              new Set(
-                                availableRooms.map((r: any) => r.roomName),
-                              ),
-                            ).map((rn: any) => (
+                            {getFilteredRooms(editForm._id).map((rn: any) => (
                               <option key={rn} value={rn}>
                                 {rn}
                               </option>
@@ -789,7 +1046,7 @@ export default function WardenDashboard() {
                           </select>
                           <select
                             className="text-[11px] font-bold border border-slate-200 rounded-lg p-1"
-                            value={editForm.bedNo}
+                            value={editForm.bedNo || ""}
                             onChange={(e) =>
                               setEditForm({
                                 ...editForm,
@@ -798,13 +1055,11 @@ export default function WardenDashboard() {
                             }
                           >
                             <option value="">Bed</option>
-                            {availableRooms
-                              .find((r) => r.roomName === editForm.roomNo)
-                              ?.beds?.map((b: any) => (
-                                <option key={b._id} value={b.bedName}>
-                                  {b.bedName}
-                                </option>
-                              ))}
+                            {getFilteredBeds(editForm.roomNo, editForm._id).map((b: any) => (
+                              <option key={b.bedName} value={b.bedName}>
+                                {b.bedName}
+                              </option>
+                            ))}
                           </select>
                         </div>
                       ) : (
@@ -819,10 +1074,10 @@ export default function WardenDashboard() {
                       )}
                     </td>
                     <td className="px-8 py-6">
-                      {editingId === student._id ? (
+                      {editingId === student._id && editForm ? (
                         <select
                           className="text-[11px] font-bold border border-slate-200 rounded-lg p-1 w-full"
-                          value={editForm.paymentFreq}
+                          value={editForm.paymentFreq || ""}
                           onChange={(e) =>
                             setEditForm({
                               ...editForm,
@@ -838,8 +1093,15 @@ export default function WardenDashboard() {
                           ))}
                         </select>
                       ) : (
-                        <div className="text-[10px] font-black text-slate-500 uppercase italic">
-                          {student.paymentFreq}
+                        <div>
+                          <div className="text-[10px] font-black text-slate-500 uppercase italic">
+                            {student.paymentFreq}
+                          </div>
+                          {(student.startDate || student.endDate) && (
+                            <div className="text-[9px] text-slate-400 font-bold mt-1">
+                              {formatDate(student.startDate)} — {formatDate(student.endDate)}
+                            </div>
+                          )}
                         </div>
                       )}
                     </td>
@@ -900,14 +1162,17 @@ export default function WardenDashboard() {
                             )
                           )}
                         {student.status === "pending" && (
-                            <button
-                              onClick={() => handleAssignToERP(student)}
-                              disabled={!!processingId}
-                              className="bg-red-600 text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-xl shadow-red-200 hover:bg-red-700 active:scale-95 transition-all disabled:grayscale"
-                            >
-                              Assign ERP
-                            </button>
-                          )}
+                          <button
+                            onClick={() => {
+                              setSelectedStudent(student);
+                              setApproveStartDate("");
+                              setApproveEndDate("");
+                            }}
+                            className="bg-indigo-600 text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-xl shadow-indigo-100 hover:bg-indigo-700 active:scale-95 transition-all"
+                          >
+                            Finalize ERP
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>

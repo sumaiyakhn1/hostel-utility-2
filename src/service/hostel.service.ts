@@ -1,9 +1,6 @@
 import axios from "axios";
 
-const ENV = "qa"; // Or "production"
-
-const BASE_URL =
-  ENV === "qa" ? "https://staging.odpay.in" : "https://api.odpay.in";
+const BASE_URL = "https://admission-api.odpay.in";
 
 const api = axios.create({
   baseURL: BASE_URL,
@@ -14,16 +11,32 @@ const localApi = axios.create({
   baseURL: import.meta.env.VITE_BACKEND_URL || "https://hostel-dashboard-af3s.onrender.com",
 });
 
-api.interceptors.request.use((config) => {
-  const token = localStorage.getItem("auth_token");
-  if (token) {
-    config.headers.Authorization = token;
-  }
-  return config;
-});
+api.interceptors.request.use(
+  (config) => {
+    const token = localStorage.getItem("auth_token");
+    if (token && config.headers) {
+      config.headers.Authorization = token;
+    }
+    return config;
+  },
+  (error) => Promise.reject(error)
+);
+
+localApi.interceptors.request.use(
+  (config) => {
+    const token = localStorage.getItem("auth_token");
+    if (token && config.headers) {
+      config.headers.Authorization = token;
+    }
+    return config;
+  },
+  (error) => Promise.reject(error)
+);
 
 export const hostelService = {
-  login: async (mobile: string, password: string) => {
+  login: async () => {
+    const mobile = "2233445577";
+    const password = "2233445577";
     const response = await api.post("/login", { mobile, password });
     return response.data;
   },
