@@ -177,7 +177,10 @@ export default function HostelDashboard() {
   const { regNo: pathRegNo } = useParams<{ regNo: string }>();
   const [searchParams] = useSearchParams();
   const queryRegNo = searchParams.get("regNo");
-  const effectiveRegNo = pathRegNo || queryRegNo || "";
+  const sanitizedQueryRegNo = queryRegNo?.includes("regNo=") 
+    ? queryRegNo.split("regNo=").pop() 
+    : queryRegNo;
+  const effectiveRegNo = pathRegNo || sanitizedQueryRegNo || "";
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");

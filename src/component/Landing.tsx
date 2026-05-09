@@ -5,16 +5,25 @@ import { hostelService } from "../service/hostel.service";
 const Landing = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [inputRegNo, setInputRegNo] = useState("");
   const navigate = useNavigate();
 
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
-    if (urlParams.get("regNo")) {
-      handleLoginAndGo();
+    let regNo = urlParams.get("regNo");
+    
+    if (regNo && regNo.includes("regNo=")) {
+      regNo = regNo.split("regNo=").pop() || "";
+    } else if (regNo && regNo.startsWith("?")) {
+      regNo = regNo.substring(1);
+    }
+
+    if (regNo) {
+      setInputRegNo(regNo);
     }
   }, []);
 
-  const handleLoginAndGo = async () => {
+  const handleLoginAndGo = async (passedRegNo?: string) => {
     setLoading(true);
     setError("");
     try {
@@ -24,16 +33,13 @@ const Landing = () => {
       if (token) {
         localStorage.setItem("auth_token", token);
         
-        // Extract regNo from URL query params
-        const urlParams = new URLSearchParams(window.location.search);
-        const regNo = urlParams.get("regNo");
+        // Use passed regNo or state or URL
+        let regNo = passedRegNo || inputRegNo;
 
         if (regNo) {
           navigate(`/dashboard/${regNo}`);
         } else {
-          // Fallback or alert if regNo is missing
           navigate("/dashboard/unknown"); 
-          // or we could show an error
         }
       } else {
         throw new Error("Token not found in response");
@@ -60,8 +66,21 @@ const Landing = () => {
           </div>
         )}
 
+        <div className="mb-6">
+          <label className="block text-left text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] mb-2.5 ml-1">
+            Student Registration No
+          </label>
+          <input
+            type="text"
+            value={inputRegNo}
+            onChange={(e) => setInputRegNo(e.target.value)}
+            placeholder="e.g. 120198000000"
+            className="w-full px-5 py-4 bg-gray-50 border border-gray-100 rounded-[1.25rem] focus:outline-none focus:ring-4 focus:ring-red-700/5 focus:border-red-700/30 transition-all font-bold text-gray-800 placeholder:text-gray-300"
+          />
+        </div>
+
         <button
-          onClick={handleLoginAndGo}
+          onClick={() => handleLoginAndGo()}
           disabled={loading}
           className="w-full py-4 bg-red-700 hover:bg-red-800 text-white rounded-2xl font-semibold text-lg shadow-lg shadow-red-700/20 active:scale-[0.98] transition-all disabled:bg-gray-400 disabled:shadow-none"
         >
