@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { hostelService } from "../service/hostel.service";
 
@@ -6,6 +6,13 @@ const Landing = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const navigate = useNavigate();
+
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get("regNo")) {
+      handleLoginAndGo();
+    }
+  }, []);
 
   const handleLoginAndGo = async () => {
     setLoading(true);
