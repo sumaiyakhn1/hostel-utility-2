@@ -222,14 +222,22 @@ export default function HostelDashboard() {
     setLoading(true);
     setError("");
     try {
-      const data = await hostelService.getHostelMaster(
-        "5ea04b2f774faa5d67505ab2",
-      );
-      if (data) setMasterData(data);
+      // Parallelize to avoid head-of-line blocking
+      const [data, all] = await Promise.all([
+        hostelService.getHostelMaster("5ea04b2f774faa5d67505ab2").catch((err) => {
+          console.error("Master data fetch failed:", err);
+          return null;
+        }),
+        hostelService.getAllSavedStudents().catch((err) => {
+          console.error("Saved students fetch failed:", err);
+          return [];
+        }),
+      ]);
 
-      const all = await hostelService.getAllSavedStudents();
-      setAllStudents(all);
-    } catch {
+      if (data) setMasterData(data);
+      if (all) setAllStudents(all);
+    } catch (err) {
+      console.error("Main fetch error:", err);
       setError("Failed to load hostel data.");
     } finally {
       setLoading(false);
@@ -323,6 +331,13 @@ export default function HostelDashboard() {
 
   useEffect(() => {
     fetchData();
+
+    // Safety timeout for mobile environments where requests might hang
+    const timer = setTimeout(() => {
+      setLoading(false);
+    }, 8000);
+
+    return () => clearTimeout(timer);
   }, []);
 
   useEffect(() => {

@@ -31,7 +31,11 @@ const Landing = () => {
       const token = data?.data?.token || data?.token;
 
       if (token) {
-        localStorage.setItem("auth_token", token);
+        try {
+          localStorage.setItem("auth_token", token);
+        } catch (e) {
+          console.warn("Could not save token to localStorage", e);
+        }
         
         // Use passed regNo or state or URL
         let regNo = passedRegNo || inputRegNo;

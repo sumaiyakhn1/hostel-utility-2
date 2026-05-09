@@ -13,9 +13,13 @@ const localApi = axios.create({
 
 api.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem("auth_token");
-    if (token && config.headers) {
-      config.headers.Authorization = token;
+    try {
+      const token = localStorage.getItem("auth_token");
+      if (token && config.headers) {
+        config.headers.Authorization = token;
+      }
+    } catch (e) {
+      console.warn("localStorage access denied", e);
     }
     return config;
   },
@@ -24,9 +28,13 @@ api.interceptors.request.use(
 
 localApi.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem("auth_token");
-    if (token && config.headers) {
-      config.headers.Authorization = token;
+    try {
+      const token = localStorage.getItem("auth_token");
+      if (token && config.headers) {
+        config.headers.Authorization = token;
+      }
+    } catch (e) {
+      console.warn("localStorage access denied", e);
     }
     return config;
   },
