@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { useParams } from "react-router-dom";
+import { useParams, useSearchParams } from "react-router-dom";
 import { hostelService } from "../service/hostel.service";
 import logo from "../assets/logo.png";
 
@@ -174,7 +174,11 @@ const ACCENT_LIGHT = "rgba(237,128,65,0.1)";
 const ACCENT_MID = "rgba(237,128,65,0.25)";
 
 export default function HostelDashboard() {
-  const { regNo: urlRegNo } = useParams<{ regNo: string }>();
+  const { regNo: pathRegNo } = useParams<{ regNo: string }>();
+  const [searchParams] = useSearchParams();
+  const queryRegNo = searchParams.get("regNo");
+  const effectiveRegNo = pathRegNo || queryRegNo || "";
+
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [masterData, setMasterData] = useState<HostelMasterData | null>(null);
@@ -185,7 +189,7 @@ export default function HostelDashboard() {
     bedNo: "",
     remark: "",
     session: "2025-26 Even",
-    regNo: urlRegNo || "",
+    regNo: effectiveRegNo,
   });
   const [student, setStudent] = useState<any>(null);
   const [localStatus, setLocalStatus] = useState<string>("");
@@ -317,9 +321,19 @@ export default function HostelDashboard() {
   useEffect(() => {
     fetchData();
   }, []);
+
   useEffect(() => {
-    fetchStudent();
-  }, [form.session, urlRegNo]);
+    if (effectiveRegNo && effectiveRegNo !== form.regNo) {
+      setForm(prev => ({ ...prev, regNo: effectiveRegNo }));
+    }
+  }, [effectiveRegNo]);
+
+  useEffect(() => {
+    if (form.regNo) {
+      fetchStudent();
+    }
+  }, [form.session, form.regNo]);
+
   useEffect(() => {
     fetchRooms();
   }, [form.hostel, form.roomType, form.session]);
@@ -950,7 +964,7 @@ export default function HostelDashboard() {
                         {student?.name || "Student Profile"}
                       </p>
                       <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">
-                        {student?.regNo || urlRegNo}
+                        {student?.regNo || effectiveRegNo}
                       </p>
                     </div>
                   </div>
@@ -961,7 +975,7 @@ export default function HostelDashboard() {
                         {student?.name || "Student Profile"}
                       </p>
                       <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">
-                        {student?.regNo || urlRegNo}
+                        {student?.regNo || effectiveRegNo}
                       </p>
                       {(student?.course || student?.stream) && (
                         <p className="text-[11px] text-slate-500 font-semibold mt-1 truncate">

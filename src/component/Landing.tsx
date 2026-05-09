@@ -12,12 +12,22 @@ const Landing = () => {
     setError("");
     try {
       const data = await hostelService.login();
-
       const token = data?.data?.token || data?.token;
 
       if (token) {
         localStorage.setItem("auth_token", token);
-        navigate("/dashboard");
+        
+        // Extract regNo from URL query params
+        const urlParams = new URLSearchParams(window.location.search);
+        const regNo = urlParams.get("regNo");
+
+        if (regNo) {
+          navigate(`/dashboard/${regNo}`);
+        } else {
+          // Fallback or alert if regNo is missing
+          navigate("/dashboard/unknown"); 
+          // or we could show an error
+        }
       } else {
         throw new Error("Token not found in response");
       }
