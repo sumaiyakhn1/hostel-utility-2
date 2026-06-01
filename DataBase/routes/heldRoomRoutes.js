@@ -16,34 +16,35 @@ router.get("/", async (req, res) => {
 // POST hold a room
 router.post("/", async (req, res) => {
   try {
-    const { roomName } = req.body;
-    if (!roomName) {
-      return res.status(400).json({ message: "roomName is required." });
+    const { roomName, bedName } = req.body;
+    if (!roomName || !bedName) {
+      return res.status(400).json({ message: "roomName and bedName are required." });
     }
 
-    const existing = await HeldRoom.findOne({ roomName });
+    const existing = await HeldRoom.findOne({ roomName, bedName });
     if (existing) {
-      return res.status(409).json({ message: "Room is already on hold." });
+      return res.status(409).json({ message: "Bed is already on hold." });
     }
 
-    const held = new HeldRoom({ roomName });
+    const held = new HeldRoom({ roomName, bedName });
     await held.save();
-    res.json({ message: "Room held successfully.", held });
+    res.json({ message: "Bed held successfully.", held });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
 // DELETE unhold a room
-router.delete("/:roomName", async (req, res) => {
+router.delete("/:roomName/:bedName", async (req, res) => {
   try {
     const result = await HeldRoom.findOneAndDelete({
       roomName: req.params.roomName,
+      bedName: req.params.bedName,
     });
     if (!result) {
-      return res.status(404).json({ message: "Room not found in hold list." });
+      return res.status(404).json({ message: "Bed not found in hold list." });
     }
-    res.json({ message: "Room unhold successful." });
+    res.json({ message: "Bed unhold successful." });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

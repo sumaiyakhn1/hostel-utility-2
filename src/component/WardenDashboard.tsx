@@ -58,10 +58,10 @@ export default function WardenDashboard() {
   const [availableRooms, setAvailableRooms] = useState<any[]>([]);
 
   // Hold Room state
-  const [heldRooms, setHeldRooms] = useState<{ roomName: string; heldAt: string }[]>([]);
+  const [heldRooms, setHeldRooms] = useState<{ roomName: string; bedName: string; heldAt: string }[]>([]);
   const [holdLoading, setHoldLoading] = useState(false);
   const [showHoldModal, setShowHoldModal] = useState(false);
-  const [holdForm, setHoldForm] = useState({ wing: "", roomType: "", roomName: "" });
+  const [holdForm, setHoldForm] = useState({ wing: "", roomType: "", roomName: "", bedNo: "" });
   const [holdAvailableRooms, setHoldAvailableRooms] = useState<any[]>([]);
 
   const ENTITY_ID = "5ea04b2f774faa5d67505ab2";
@@ -88,14 +88,14 @@ export default function WardenDashboard() {
   };
 
   const handleHoldRoom = async () => {
-    if (!holdForm.roomName) return;
+    if (!holdForm.roomName || !holdForm.bedNo) return;
     setHoldLoading(true);
     try {
-      await hostelService.holdRoom(holdForm.roomName);
-      setHoldForm((prev) => ({ ...prev, roomName: "" }));
+      await hostelService.holdRoom(holdForm.roomName, holdForm.bedNo);
+      setHoldForm((prev) => ({ ...prev, roomName: "", bedNo: "" }));
       await fetchHeldRooms();
     } catch (err: any) {
-      alert(err.response?.data?.message || "Failed to hold room.");
+      alert(err.response?.data?.message || "Failed to hold bed.");
     } finally {
       setHoldLoading(false);
     }
@@ -122,13 +122,13 @@ export default function WardenDashboard() {
     if (!masterData) fetchMasterData();
   };
 
-  const handleUnholdRoom = async (roomName: string) => {
+  const handleUnholdRoom = async (roomName: string, bedName: string) => {
     setHoldLoading(true);
     try {
-      await hostelService.unholdRoom(roomName);
+      await hostelService.unholdRoom(roomName, bedName);
       await fetchHeldRooms();
     } catch (err: any) {
-      alert(err.response?.data?.message || "Failed to unhold room.");
+      alert(err.response?.data?.message || "Failed to unhold bed.");
     } finally {
       setHoldLoading(false);
     }
@@ -544,7 +544,7 @@ export default function WardenDashboard() {
               <rect x="3" y="11" width="18" height="11" rx="2" ry="2" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
               <path d="M7 11V7a5 5 0 0110 0v4" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
-            Hold Rooms
+            Hold Beds
             {heldRooms.length > 0 && (
               <span className="bg-white/25 text-white text-[9px] font-black px-1.5 py-0.5 rounded-full">{heldRooms.length}</span>
             )}
@@ -620,8 +620,8 @@ export default function WardenDashboard() {
                       <path d="M7 11V7a5 5 0 0110 0v4" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
                     </svg>
                   </div>
-                  <h3 className="text-2xl font-black tracking-tight leading-tight">Room Hold Management</h3>
-                  <p className="text-amber-100 text-xs font-bold uppercase tracking-widest mt-2 opacity-80">Hold or release rooms for allocation</p>
+                  <h3 className="text-2xl font-black tracking-tight leading-tight">Bed Hold Management</h3>
+                  <p className="text-amber-100 text-xs font-bold uppercase tracking-widest mt-2 opacity-80">Hold or release beds for allocation</p>
                 </div>
                 <button
                   onClick={() => setShowHoldModal(false)}
@@ -640,7 +640,7 @@ export default function WardenDashboard() {
               <div className="mb-8">
                 <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-4 flex items-center gap-2">
                   <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
-                  Hold a Room
+                  Hold a Bed
                 </h4>
                 <div className="grid grid-cols-2 gap-3 mb-4">
                   {/* Wing */}
@@ -651,7 +651,7 @@ export default function WardenDashboard() {
                       value={holdForm.wing}
                       onChange={(e) => {
                         const wing = e.target.value;
-                        setHoldForm({ wing, roomType: "", roomName: "" });
+                        setHoldForm({ wing, roomType: "", roomName: "", bedNo: "" });
                         setHoldAvailableRooms([]);
                       }}
                     >
@@ -667,7 +667,7 @@ export default function WardenDashboard() {
                       value={holdForm.roomType}
                       onChange={(e) => {
                         const roomType = e.target.value;
-                        setHoldForm((prev) => ({ ...prev, roomType, roomName: "" }));
+                        setHoldForm((prev) => ({ ...prev, roomType, roomName: "", bedNo: "" }));
                         fetchHoldRooms(holdForm.wing, roomType);
                       }}
                       disabled={!holdForm.wing}
@@ -684,7 +684,7 @@ export default function WardenDashboard() {
                   <select
                     className="w-full text-sm font-bold bg-transparent outline-none cursor-pointer"
                     value={holdForm.roomName}
-                    onChange={(e) => setHoldForm((prev) => ({ ...prev, roomName: e.target.value }))}
+                    onChange={(e) => setHoldForm((prev) => ({ ...prev, roomName: e.target.value, bedNo: "" }))}
                     disabled={!holdForm.wing || !holdForm.roomType || holdAvailableRooms.length === 0}
                   >
                     <option value="">
@@ -693,19 +693,42 @@ export default function WardenDashboard() {
                         : "Select Room"}
                     </option>
                     {Array.from(new Set(holdAvailableRooms.map((r: any) => r.roomName))).map((rn: any) => {
-                      const isAlreadyHeld = heldRooms.some((hr) => hr.roomName === rn);
                       return (
-                        <option key={rn} value={rn} disabled={isAlreadyHeld}>
-                          {rn}{isAlreadyHeld ? " (Already Held)" : ""}
+                        <option key={rn} value={rn}>
+                          {rn}
                         </option>
                       );
                     })}
                   </select>
                 </div>
 
+                {/* Bed Allocation */}
+                <div className="bg-slate-50 rounded-xl p-3 border border-slate-100 mb-4">
+                  <label className="text-[8px] font-black uppercase tracking-widest text-slate-400 block mb-1">Bed Allocation</label>
+                  <select
+                    className="w-full text-sm font-bold bg-transparent outline-none cursor-pointer"
+                    value={holdForm.bedNo}
+                    onChange={(e) => setHoldForm((prev) => ({ ...prev, bedNo: e.target.value }))}
+                    disabled={!holdForm.roomName}
+                  >
+                    <option value="">Select Bed</option>
+                    {(() => {
+                      const room = holdAvailableRooms.find((r: any) => r.roomName === holdForm.roomName);
+                      return (room?.beds || []).map((b: any) => {
+                        const isAlreadyHeld = heldRooms.some((hr) => hr.roomName === holdForm.roomName && hr.bedName === b.bedName);
+                        return (
+                          <option key={b.bedName} value={b.bedName} disabled={isAlreadyHeld}>
+                            {b.bedName}{isAlreadyHeld ? " (Already Held)" : ""}
+                          </option>
+                        );
+                      });
+                    })()}
+                  </select>
+                </div>
+
                 <button
                   onClick={handleHoldRoom}
-                  disabled={holdLoading || !holdForm.roomName}
+                  disabled={holdLoading || !holdForm.roomName || !holdForm.bedNo}
                   className="w-full py-3.5 bg-amber-500 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-amber-600 active:scale-[0.98] transition-all shadow-lg shadow-amber-100 disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                 >
                   {holdLoading ? (
@@ -716,7 +739,7 @@ export default function WardenDashboard() {
                         <rect x="3" y="11" width="18" height="11" rx="2" ry="2" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
                         <path d="M7 11V7a5 5 0 0110 0v4" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
                       </svg>
-                      Hold This Room
+                      Hold This Bed
                     </>
                   )}
                 </button>
@@ -734,14 +757,14 @@ export default function WardenDashboard() {
                 {heldRooms.length === 0 ? (
                   <div className="text-center py-8 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
                     <div className="text-3xl mb-2">🔓</div>
-                    <p className="text-slate-300 text-xs font-black uppercase tracking-widest">No rooms on hold</p>
-                    <p className="text-slate-300 text-[9px] font-bold mt-1">All rooms are available for allocation</p>
+                    <p className="text-slate-300 text-xs font-black uppercase tracking-widest">No beds on hold</p>
+                    <p className="text-slate-300 text-[9px] font-bold mt-1">All beds are available for allocation</p>
                   </div>
                 ) : (
                   <div className="space-y-2">
                     {heldRooms.map((room) => (
                       <div
-                        key={room.roomName}
+                        key={`${room.roomName}-${room.bedName}`}
                         className="flex items-center justify-between px-5 py-3.5 bg-amber-50 border border-amber-200 rounded-2xl transition-all hover:bg-amber-100 group"
                       >
                         <div className="flex items-center gap-3">
@@ -749,10 +772,10 @@ export default function WardenDashboard() {
                             <rect x="3" y="11" width="18" height="11" rx="2" ry="2" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
                             <path d="M7 11V7a5 5 0 0110 0v4" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
                           </svg>
-                          <span className="text-sm font-black text-slate-800">{room.roomName}</span>
+                          <span className="text-sm font-black text-slate-800">{room.roomName} — {room.bedName}</span>
                         </div>
                         <button
-                          onClick={() => handleUnholdRoom(room.roomName)}
+                          onClick={() => handleUnholdRoom(room.roomName, room.bedName)}
                           disabled={holdLoading}
                           className="px-3 py-1.5 bg-white border border-slate-200 text-slate-400 rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-red-50 hover:text-red-500 hover:border-red-200 transition-all"
                         >

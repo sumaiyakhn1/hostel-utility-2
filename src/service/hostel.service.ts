@@ -125,13 +125,13 @@ export const hostelService = {
     return response.data;
   },
 
-  holdRoom: async (roomName: string) => {
-    const response = await localApi.post(`/api/held-rooms`, { roomName });
+  holdRoom: async (roomName: string, bedName: string) => {
+    const response = await localApi.post(`/api/held-rooms`, { roomName, bedName });
     return response.data;
   },
 
-  unholdRoom: async (roomName: string) => {
-    const response = await localApi.delete(`/api/held-rooms/${encodeURIComponent(roomName)}`);
+  unholdRoom: async (roomName: string, bedName: string) => {
+    const response = await localApi.delete(`/api/held-rooms/${encodeURIComponent(roomName)}/${encodeURIComponent(bedName)}`);
     return response.data;
   },
 };

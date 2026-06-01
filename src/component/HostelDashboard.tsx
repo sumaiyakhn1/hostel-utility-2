@@ -205,7 +205,7 @@ export default function HostelDashboard() {
   const [erpHostelAssigned, setErpHostelAssigned] = useState(false);
   const [erpHostelData, setErpHostelData] = useState<any>(null);
   const [allStudents, setAllStudents] = useState<any[]>([]);
-  const [heldRoomNames, setHeldRoomNames] = useState<string[]>([]);
+  const [heldBeds, setHeldBeds] = useState<{ roomName: string; bedName: string }[]>([]);
 
   const addNotification = (
     message: string,
@@ -241,7 +241,7 @@ export default function HostelDashboard() {
 
       if (data) setMasterData(data);
       if (all) setAllStudents(all);
-      if (heldRooms) setHeldRoomNames(heldRooms.map((r: any) => r.roomName));
+      if (heldRooms) setHeldBeds(heldRooms.map((r: any) => ({ roomName: r.roomName, bedName: r.bedName })));
     } catch (err) {
       console.error("Main fetch error:", err);
       setError("Failed to load hostel data.");
@@ -263,12 +263,12 @@ export default function HostelDashboard() {
       )
       .map((s) => s.bedNo);
 
-    return room.beds.filter((b: any) => !takenBeds.includes(b.bedName) && b.bedStatus !== "Assigned");
+    return room.beds.filter((b: any) => !takenBeds.includes(b.bedName) && b.bedStatus !== "Assigned" && !heldBeds.some((hb) => hb.roomName === roomName && hb.bedName === b.bedName));
   };
 
   const getFilteredRooms = () => {
     const roomNames = Array.from(new Set(availableRooms.map((r: any) => r.roomName)));
-    return roomNames.filter((rn) => !heldRoomNames.includes(rn) && getFilteredBeds(rn).length > 0);
+    return roomNames.filter((rn) => getFilteredBeds(rn).length > 0);
   };
 
   const fetchStudent = async () => {
@@ -1110,6 +1110,8 @@ export default function HostelDashboard() {
                             <option value="">
                               {field.name === "roomNo" && form.hostel && form.roomType && getFilteredRooms().length === 0
                                 ? "No rooms available."
+                                : field.name === "bedNo" && form.roomNo && getFilteredBeds(form.roomNo).length === 0
+                                ? "No beds available."
                                 : `Select ${field.label}`}
                             </option>
                             {field.options.map((opt: string) => (
