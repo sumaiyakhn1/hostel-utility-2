@@ -61,7 +61,7 @@ export default function WardenDashboard() {
   const [heldRooms, setHeldRooms] = useState<{ roomName: string; bedName: string; heldAt: string }[]>([]);
   const [holdLoading, setHoldLoading] = useState(false);
   const [showHoldModal, setShowHoldModal] = useState(false);
-  const [holdForm, setHoldForm] = useState({ wing: "", roomType: "", roomName: "", bedNo: "" });
+  const [holdForm, setHoldForm] = useState<{ wing: string; roomType: string; roomName: string; selectedBeds: string[] }>({ wing: "", roomType: "", roomName: "", selectedBeds: [] });
   const [holdAvailableRooms, setHoldAvailableRooms] = useState<any[]>([]);
 
   const ENTITY_ID = "5ea04b2f774faa5d67505ab2";
@@ -88,14 +88,14 @@ export default function WardenDashboard() {
   };
 
   const handleHoldRoom = async () => {
-    if (!holdForm.roomName || !holdForm.bedNo) return;
+    if (!holdForm.roomName || holdForm.selectedBeds.length === 0) return;
     setHoldLoading(true);
     try {
-      await hostelService.holdRoom(holdForm.roomName, holdForm.bedNo);
-      setHoldForm((prev) => ({ ...prev, roomName: "", bedNo: "" }));
+      await Promise.all(holdForm.selectedBeds.map(bed => hostelService.holdRoom(holdForm.roomName, bed)));
+      setHoldForm((prev) => ({ ...prev, roomName: "", selectedBeds: [] }));
       await fetchHeldRooms();
     } catch (err: any) {
-      alert(err.response?.data?.message || "Failed to hold bed.");
+      alert(err.response?.data?.message || "Failed to hold bed(s).");
     } finally {
       setHoldLoading(false);
     }
@@ -651,7 +651,7 @@ export default function WardenDashboard() {
                       value={holdForm.wing}
                       onChange={(e) => {
                         const wing = e.target.value;
-                        setHoldForm({ wing, roomType: "", roomName: "", bedNo: "" });
+                        setHoldForm({ wing, roomType: "", roomName: "", selectedBeds: [] });
                         setHoldAvailableRooms([]);
                       }}
                     >
@@ -667,7 +667,7 @@ export default function WardenDashboard() {
                       value={holdForm.roomType}
                       onChange={(e) => {
                         const roomType = e.target.value;
-                        setHoldForm((prev) => ({ ...prev, roomType, roomName: "", bedNo: "" }));
+                        setHoldForm((prev) => ({ ...prev, roomType, roomName: "", selectedBeds: [] }));
                         fetchHoldRooms(holdForm.wing, roomType);
                       }}
                       disabled={!holdForm.wing}
@@ -684,7 +684,7 @@ export default function WardenDashboard() {
                   <select
                     className="w-full text-sm font-bold bg-transparent outline-none cursor-pointer"
                     value={holdForm.roomName}
-                    onChange={(e) => setHoldForm((prev) => ({ ...prev, roomName: e.target.value, bedNo: "" }))}
+                    onChange={(e) => setHoldForm((prev) => ({ ...prev, roomName: e.target.value, selectedBeds: [] }))}
                     disabled={!holdForm.wing || !holdForm.roomType || holdAvailableRooms.length === 0}
                   >
                     <option value="">
@@ -702,33 +702,76 @@ export default function WardenDashboard() {
                   </select>
                 </div>
 
-                {/* Bed Allocation */}
-                <div className="bg-slate-50 rounded-xl p-3 border border-slate-100 mb-4">
-                  <label className="text-[8px] font-black uppercase tracking-widest text-slate-400 block mb-1">Bed Allocation</label>
-                  <select
-                    className="w-full text-sm font-bold bg-transparent outline-none cursor-pointer"
-                    value={holdForm.bedNo}
-                    onChange={(e) => setHoldForm((prev) => ({ ...prev, bedNo: e.target.value }))}
-                    disabled={!holdForm.roomName}
-                  >
-                    <option value="">Select Bed</option>
-                    {(() => {
-                      const room = holdAvailableRooms.find((r: any) => r.roomName === holdForm.roomName);
-                      return (room?.beds || []).map((b: any) => {
-                        const isAlreadyHeld = heldRooms.some((hr) => hr.roomName === holdForm.roomName && hr.bedName === b.bedName);
-                        return (
-                          <option key={b.bedName} value={b.bedName} disabled={isAlreadyHeld}>
-                            {b.bedName}{isAlreadyHeld ? " (Already Held)" : ""}
-                          </option>
-                        );
-                      });
-                    })()}
-                  </select>
-                </div>
+                {/* Bed Allocation Checkboxes */}
+                {holdForm.roomName && (() => {
+                  const room = holdAvailableRooms.find((r: any) => r.roomName === holdForm.roomName);
+                  const beds = room?.beds || [];
+                  if (beds.length === 0) return null;
+
+                  return (
+                    <div className="bg-slate-50 rounded-xl p-4 border border-slate-100 mb-4 animate-fadeIn">
+                      <label className="text-[8px] font-black uppercase tracking-widest text-slate-400 block mb-3">Select Beds to Hold</label>
+                      <div className="grid grid-cols-2 gap-3">
+                        {beds.map((b: any) => {
+                          const isAlreadyHeld = heldRooms.some((hr) => hr.roomName === holdForm.roomName && hr.bedName === b.bedName);
+                          const isSelected = holdForm.selectedBeds.includes(b.bedName);
+
+                          return (
+                            <label
+                              key={b.bedName}
+                              className={`flex items-center gap-3 p-3 rounded-xl border-2 transition-all cursor-pointer select-none ${
+                                isAlreadyHeld
+                                  ? "bg-slate-100 border-slate-200 opacity-50 cursor-not-allowed"
+                                  : isSelected
+                                  ? "bg-amber-50 border-amber-400 shadow-md shadow-amber-100/50"
+                                  : "bg-white border-slate-200 hover:border-amber-200 hover:bg-amber-50/30"
+                              }`}
+                            >
+                              <div className={`w-5 h-5 rounded flex-shrink-0 flex items-center justify-center border-2 transition-colors ${
+                                isAlreadyHeld
+                                  ? "bg-slate-200 border-slate-300"
+                                  : isSelected
+                                  ? "bg-amber-500 border-amber-500 text-white"
+                                  : "bg-white border-slate-300"
+                              }`}>
+                                {isSelected && (
+                                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" />
+                                  </svg>
+                                )}
+                              </div>
+                              <div className="flex flex-col">
+                                <span className={`text-sm font-bold ${isAlreadyHeld ? "text-slate-400" : "text-slate-700"}`}>
+                                  {b.bedName}
+                                </span>
+                                {isAlreadyHeld && <span className="text-[8px] font-black uppercase tracking-widest text-amber-500 mt-0.5">Currently Held</span>}
+                              </div>
+                              <input
+                                type="checkbox"
+                                className="hidden"
+                                disabled={isAlreadyHeld}
+                                checked={isSelected}
+                                onChange={(e) => {
+                                  if (isAlreadyHeld) return;
+                                  setHoldForm(prev => ({
+                                    ...prev,
+                                    selectedBeds: e.target.checked
+                                      ? [...prev.selectedBeds, b.bedName]
+                                      : prev.selectedBeds.filter(bed => bed !== b.bedName)
+                                  }));
+                                }}
+                              />
+                            </label>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })()}
 
                 <button
                   onClick={handleHoldRoom}
-                  disabled={holdLoading || !holdForm.roomName || !holdForm.bedNo}
+                  disabled={holdLoading || !holdForm.roomName || holdForm.selectedBeds.length === 0}
                   className="w-full py-3.5 bg-amber-500 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-amber-600 active:scale-[0.98] transition-all shadow-lg shadow-amber-100 disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                 >
                   {holdLoading ? (
@@ -739,7 +782,7 @@ export default function WardenDashboard() {
                         <rect x="3" y="11" width="18" height="11" rx="2" ry="2" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
                         <path d="M7 11V7a5 5 0 0110 0v4" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
                       </svg>
-                      Hold This Bed
+                      Hold {holdForm.selectedBeds.length > 0 ? `${holdForm.selectedBeds.length} Selected Bed${holdForm.selectedBeds.length > 1 ? 's' : ''}` : "Selected Beds"}
                     </>
                   )}
                 </button>
