@@ -64,6 +64,14 @@ export default function WardenDashboard() {
   const [holdForm, setHoldForm] = useState<{ wing: string; roomType: string; roomName: string; selectedBeds: string[] }>({ wing: "", roomType: "", roomName: "", selectedBeds: [] });
   const [holdAvailableRooms, setHoldAvailableRooms] = useState<any[]>([]);
 
+  // Reports state
+  const [activeTab, setActiveTab] = useState<"allocations" | "reports">("allocations");
+  const [reportForm, setReportForm] = useState({ wing: "", roomType: "", roomName: "" });
+  const [reportAvailableRooms, setReportAvailableRooms] = useState<any[]>([]);
+  const [reportData, setReportData] = useState<any[]>([]);
+  const [reportLoading, setReportLoading] = useState(false);
+  const [reportError, setReportError] = useState("");
+
   const ENTITY_ID = "5ea04b2f774faa5d67505ab2";
 
   const fetchAllStudents = async () => {
@@ -117,6 +125,55 @@ export default function WardenDashboard() {
     }
   };
 
+  const fetchReportRooms = async (wing: string, roomType: string) => {
+    if (!wing || !roomType) { setReportAvailableRooms([]); return; }
+    try {
+      const data = await hostelService.getHostelRooms({
+        entity: ENTITY_ID,
+        session: "2025-26 Even",
+        hostel: wing,
+        roomType,
+      });
+      const rooms = Array.isArray(data) ? data : data.data || [];
+      setReportAvailableRooms(rooms);
+    } catch (err) {
+      console.error("Error fetching report rooms:", err);
+    }
+  };
+
+  const handleFetchReport = async () => {
+    if (!reportForm.wing || !reportForm.roomType || !reportForm.roomName) return;
+    setReportLoading(true);
+    setReportError("");
+    setReportData([]);
+    try {
+      const payload = {
+        entity: ENTITY_ID,
+        session: "2025-26 Even",
+        course: ["all"],
+        batch: ["all"],
+        hostel: [reportForm.wing],
+        hostelRoomName: [reportForm.roomName],
+        hostelRoomType: [reportForm.roomType],
+        pageNumber: 1,
+        pageSize: 100,
+        section: ["all"],
+        stream: ["all"]
+      };
+      const data = await hostelService.getStudentReports(payload);
+      setReportData(data || []);
+    } catch (err: any) {
+      const msg = err.response?.data?.message || "Failed to fetch report.";
+      if (msg.toLowerCase().includes("no student found")) {
+        setReportData([]);
+      } else {
+        setReportError(msg);
+      }
+    } finally {
+      setReportLoading(false);
+    }
+  };
+
   const openHoldModal = () => {
     setShowHoldModal(true);
     if (!masterData) fetchMasterData();
@@ -141,6 +198,7 @@ export default function WardenDashboard() {
     } else {
       fetchAllStudents();
       fetchHeldRooms();
+      fetchMasterData();
     }
   }, [navigate]);
 
@@ -719,21 +777,19 @@ export default function WardenDashboard() {
                           return (
                             <label
                               key={b.bedName}
-                              className={`flex items-center gap-3 p-3 rounded-xl border-2 transition-all cursor-pointer select-none ${
-                                isAlreadyHeld
+                              className={`flex items-center gap-3 p-3 rounded-xl border-2 transition-all cursor-pointer select-none ${isAlreadyHeld
                                   ? "bg-slate-100 border-slate-200 opacity-50 cursor-not-allowed"
                                   : isSelected
-                                  ? "bg-amber-50 border-amber-400 shadow-md shadow-amber-100/50"
-                                  : "bg-white border-slate-200 hover:border-amber-200 hover:bg-amber-50/30"
-                              }`}
+                                    ? "bg-amber-50 border-amber-400 shadow-md shadow-amber-100/50"
+                                    : "bg-white border-slate-200 hover:border-amber-200 hover:bg-amber-50/30"
+                                }`}
                             >
-                              <div className={`w-5 h-5 rounded flex-shrink-0 flex items-center justify-center border-2 transition-colors ${
-                                isAlreadyHeld
+                              <div className={`w-5 h-5 rounded flex-shrink-0 flex items-center justify-center border-2 transition-colors ${isAlreadyHeld
                                   ? "bg-slate-200 border-slate-300"
                                   : isSelected
-                                  ? "bg-amber-500 border-amber-500 text-white"
-                                  : "bg-white border-slate-300"
-                              }`}>
+                                    ? "bg-amber-500 border-amber-500 text-white"
+                                    : "bg-white border-slate-300"
+                                }`}>
                                 {isSelected && (
                                   <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" />
@@ -833,676 +889,850 @@ export default function WardenDashboard() {
           </div>
         </div>
       )}
-
-      {/* Applications + Detail panel */}
-      <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
-        {/* Left: Applications List */}
-        <div className="lg:col-span-1 bg-white/70 backdrop-blur-3xl rounded-[2rem] border border-white shadow-2xl overflow-hidden">
-          <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
-            <h2 className="text-[11px] font-black uppercase tracking-widest text-slate-500">
-              Applications
-            </h2>
-            <span className="bg-red-100 text-red-600 text-[10px] font-black px-2 py-0.5 rounded-full">
-              {filteredStudents.length}
-            </span>
-          </div>
-          {loading ? (
-            <div className="p-6 space-y-3">
-              {Array(5)
-                .fill(0)
-                .map((_, i) => (
-                  <div
-                    key={i}
-                    className="animate-pulse h-14 bg-slate-100 rounded-xl"
-                  />
-                ))}
-            </div>
-          ) : filteredStudents.length === 0 ? (
-            <div className="p-10 text-center">
-              <p className="text-slate-400 font-black">No applications yet.</p>
-              <p className="text-slate-300 text-xs font-bold uppercase tracking-widest mt-1">
-                Waiting for registrations...
-              </p>
-            </div>
-          ) : (
-            <div className="divide-y divide-slate-50 max-h-[600px] overflow-y-auto">
-              {filteredStudents.map((student, index) => (
-                <button
-                  key={student._id}
-                  onClick={() => handleStudentClick(student)}
-                  className={`w-full text-left px-5 py-4 flex items-center gap-3 transition-all hover:bg-slate-50 ${selectedStudent?._id === student._id ? "bg-red-50 border-l-4 border-red-500" : ""}`}
-                >
-                  <span className="text-[11px] font-black text-slate-300 w-5 flex-shrink-0 text-right">
-                    {index + 1}
-                  </span>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-black text-slate-900 truncate">
-                      {student.name || student.regNumber}
-                    </p>
-                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wide">
-                      {student.regNumber}
-                    </p>
-                  </div>
-                  <div className="flex-shrink-0 text-right">
-                    <p className="text-[10px] font-black text-slate-500">
-                      {formatDate(student.applyDate)}
-                    </p>
-                    <div
-                      className={`mt-1 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-black uppercase ${statusColor(student.status)}`}
-                    >
-                      <div
-                        className={`w-1.5 h-1.5 rounded-full ${statusDot(student.status)}`}
-                      />
-                      {student.status || "pending"}
-                    </div>
-                  </div>
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* Right: Detail + Actions */}
-        <div className="lg:col-span-2">
-          {selectedStudent ? (
-            <div className="bg-white/70 backdrop-blur-3xl rounded-[2rem] border border-white shadow-2xl overflow-hidden">
-              <div className="px-8 py-5 border-b border-slate-100 flex items-start justify-between">
-                <div className="flex-1 pr-4">
-                  <h2 className="text-xl font-black text-slate-900 mb-1">
-                    {selectedStudent.name || "Student Detail"}
-                  </h2>
-                  <div className="flex flex-wrap items-center gap-2 text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2.5">
-                    <span className="bg-slate-100 text-slate-600 px-2 py-0.5 rounded-md">
-                      {selectedStudent.regNumber}
-                    </span>
-                    <span>·</span>
-                    <span>Applied: {formatDate(selectedStudent.applyDate)}</span>
-                    <span
-                      className={`ml-3 inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase ${statusColor(selectedStudent.status)}`}
-                    >
-                      <div
-                        className={`w-1 h-1 rounded-full ${statusDot(selectedStudent.status)}`}
-                      />
-                      {selectedStudent.status || "pending"}
-                    </span>
-                    {selectedStudent.rejectRemark && (
-                      <span className="ml-2 text-[10px] text-red-500 font-bold uppercase tracking-tight">
-                        · {selectedStudent.rejectRemark}
-                      </span>
-                    )}
-                  </div>
-
-                  {(selectedErpStudent?.course || selectedErpStudent?.stream) && (
-                    <p className="text-xs font-bold text-slate-700 mb-1.5">
-                      {selectedErpStudent.course}
-                      {selectedErpStudent.stream ? ` • ${selectedErpStudent.stream}` : ""}
-                    </p>
-                  )}
-
-                  <div className="flex flex-wrap gap-x-4 gap-y-2 text-[11px] font-semibold text-slate-500">
-                    {selectedErpStudent?.batch && (
-                      <span className="bg-slate-50 px-2 py-0.5 rounded border border-slate-100">
-                        Batch: {selectedErpStudent.batch}
-                      </span>
-                    )}
-                    {selectedErpStudent?.section && (
-                      <span className="bg-slate-50 px-2 py-0.5 rounded border border-slate-100">
-                        Sec: {selectedErpStudent.section}
-                      </span>
-                    )}
-                    {selectedErpStudent?.phone && (
-                      <span className="flex items-center gap-1.5 text-slate-600">
-                        <span>📞</span> {selectedErpStudent.phone}
-                      </span>
-                    )}
-                  </div>
-                </div>
-                <button
-                  onClick={closeModal}
-                  className="text-slate-300 hover:text-red-500 transition-colors p-2"
-                >
-                  <svg
-                    className="w-5 h-5"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth="2.5"
-                      d="M6 18L18 6M6 6l12 12"
-                    />
-                  </svg>
-                </button>
+{/* Applications + Detail panel */}
+          <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+            {/* Left: Applications List */}
+            <div className="lg:col-span-1 bg-white/70 backdrop-blur-3xl rounded-[2rem] border border-white shadow-2xl overflow-hidden">
+              <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
+                <h2 className="text-[11px] font-black uppercase tracking-widest text-slate-500">
+                  Applications
+                </h2>
+                <span className="bg-red-100 text-red-600 text-[10px] font-black px-2 py-0.5 rounded-full">
+                  {filteredStudents.length}
+                </span>
               </div>
-              <div className="p-5">
-                <div className="flex items-center justify-between mb-3">
-                  <h3 className="text-[9px] font-black uppercase tracking-widest text-slate-400">
-                    Application Details
-                  </h3>
-                  <button
-                    onClick={handleModalEditToggle}
-                    className="text-[10px] font-black uppercase tracking-widest text-red-500 hover:text-red-600 transition-colors"
-                  >
-                    {isModalEditing ? "Cancel" : "Edit"}
-                  </button>
+              {loading ? (
+                <div className="p-6 space-y-3">
+                  {Array(5)
+                    .fill(0)
+                    .map((_, i) => (
+                      <div
+                        key={i}
+                        className="animate-pulse h-14 bg-slate-100 rounded-xl"
+                      />
+                    ))}
                 </div>
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mb-4">
-                  {isModalEditing ? (
-                    <>
-                      {/* Editable Fields in Modal */}
-                      <div className="bg-slate-50 rounded-2xl p-3 border border-slate-100">
-                        <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-1">Session</p>
-                        <p className="text-sm font-black text-slate-800">{editForm.session}</p>
+              ) : filteredStudents.length === 0 ? (
+                <div className="p-10 text-center">
+                  <p className="text-slate-400 font-black">No applications yet.</p>
+                  <p className="text-slate-300 text-xs font-bold uppercase tracking-widest mt-1">
+                    Waiting for registrations...
+                  </p>
+                </div>
+              ) : (
+                <div className="divide-y divide-slate-50 max-h-[600px] overflow-y-auto">
+                  {filteredStudents.map((student, index) => (
+                    <button
+                      key={student._id}
+                      onClick={() => handleStudentClick(student)}
+                      className={`w-full text-left px-5 py-4 flex items-center gap-3 transition-all hover:bg-slate-50 ${selectedStudent?._id === student._id ? "bg-red-50 border-l-4 border-red-500" : ""}`}
+                    >
+                      <span className="text-[11px] font-black text-slate-300 w-5 flex-shrink-0 text-right">
+                        {index + 1}
+                      </span>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-black text-slate-900 truncate">
+                          {student.name || student.regNumber}
+                        </p>
+                        <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wide">
+                          {student.regNumber}
+                        </p>
                       </div>
-                      <div className="bg-slate-50 rounded-2xl p-3 border border-slate-100">
-                        <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-1">Wing</p>
-                        <select
-                          className="w-full text-sm font-black bg-transparent outline-none"
-                          value={editForm.wing}
-                          onChange={(e) => setEditForm({ ...editForm, wing: e.target.value })}
-                        >
-                          {masterData?.hostel.map(h => <option key={h} value={h}>{h}</option>)}
-                        </select>
-                      </div>
-                      <div className="bg-slate-50 rounded-2xl p-3 border border-slate-100">
-                        <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-1">Room Type</p>
-                        <select
-                          className="w-full text-sm font-black bg-transparent outline-none"
-                          value={editForm.roomType}
-                          onChange={(e) => setEditForm({ ...editForm, roomType: e.target.value })}
-                        >
-                          {masterData?.roomType.map(rt => <option key={rt} value={rt}>{rt}</option>)}
-                        </select>
-                      </div>
-                      <div className="bg-slate-50 rounded-2xl p-3 border border-slate-100">
-                        <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-1">Room No</p>
-                        <select
-                          className="w-full text-xs font-black bg-transparent outline-none"
-                          value={editForm?.roomNo || ""}
-                          onChange={(e) => setEditForm({ ...editForm, roomNo: e.target.value })}
-                        >
-                          {editForm && getFilteredRooms(editForm._id).map((rn: any) => (
-                            <option key={rn} value={rn}>{rn}</option>
-                          ))}
-                        </select>
-                      </div>
-                      <div className="bg-slate-50 rounded-xl p-2 border border-slate-100">
-                        <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-1">Bed No</p>
-                        <select
-                          className="w-full text-xs font-black bg-transparent outline-none"
-                          value={editForm?.bedNo || ""}
-                          onChange={(e) => setEditForm({ ...editForm, bedNo: e.target.value })}
-                        >
-                          {editForm && getFilteredBeds(editForm.roomNo, editForm._id).map((b: any) => (
-                            <option key={b.bedName} value={b.bedName}>{b.bedName}</option>
-                          ))}
-                        </select>
-                      </div>
-                      <div className="bg-slate-50 rounded-2xl p-3 border border-slate-100 col-span-2 sm:col-span-3">
-                        <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-1">Remark</p>
-                        <p className="text-sm font-black text-slate-800">{editForm?.remark || "—"}</p>
-                      </div>
-                      <div className="col-span-2 sm:col-span-3">
-                        <button
-                          onClick={handleModalSave}
-                          className="w-full bg-slate-900 text-white py-2 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-black transition-all"
-                        >
-                          {processingId ? "Saving..." : "Save Changes"}
-                        </button>
-                      </div>
-                    </>
-                  ) : (
-                    <>
-                      {[
-                        { label: "Session", value: selectedStudent?.session },
-                        { label: "Wing", value: selectedStudent?.wing },
-                        { label: "Room Type", value: selectedStudent?.roomType },
-                        { label: "Room No", value: selectedStudent?.roomNo },
-                        { label: "Bed No", value: selectedStudent?.bedNo },
-                        { label: "Remark", value: selectedStudent?.remark || "—" },
-                      ].map(({ label, value }) => (
+                      <div className="flex-shrink-0 text-right">
+                        <p className="text-[10px] font-black text-slate-500">
+                          {formatDate(student.applyDate)}
+                        </p>
                         <div
-                          key={label}
-                          className={`bg-slate-50 rounded-xl p-2.5 border border-slate-100 ${label === "Remark" ? "col-span-2 sm:col-span-3" : ""}`}
+                          className={`mt-1 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-black uppercase ${statusColor(student.status)}`}
                         >
-                          <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-0.5">
-                            {label}
-                          </p>
-                          <p className="text-xs font-black text-slate-800 leading-tight">
-                            {value || "—"}
-                          </p>
-                        </div>
-                      ))}
-                    </>
-                  )}
-                </div>
-
-                {selectedStudent.status === "pending" && (
-                  <div className="mt-4 pt-4 border-t border-slate-100 animate-slideUp">
-                    <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-4 flex items-center gap-2">
-                      <span className="w-1.5 h-1.5 rounded-full bg-indigo-500" />
-                      Final ERP Configuration
-                    </p>
-                    {showRejectBox ? (
-                      <div className="space-y-3">
-                        <textarea
-                          value={rejectRemark}
-                          onChange={(e) => setRejectRemark(e.target.value)}
-                          placeholder="Reason for rejection..."
-                          className="w-full p-3 border border-red-100 rounded-xl text-xs font-bold bg-red-50/30 outline-none focus:ring-2 focus:ring-red-100 transition-all resize-none"
-                          rows={2}
-                        />
-                        <div className="flex gap-2">
-                          <button
-                            onClick={handleReject}
-                            disabled={!!processingId || !rejectRemark.trim()}
-                            className="bg-red-600 text-white px-5 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest hover:bg-red-700 transition-all disabled:grayscale"
-                          >
-                            {processingId ? "Processing..." : "Confirm Reject"}
-                          </button>
-                          <button
-                            onClick={() => setShowRejectBox(false)}
-                            className="border border-slate-200 text-slate-400 px-5 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest hover:text-slate-600 transition-all"
-                          >
-                            Cancel
-                          </button>
+                          <div
+                            className={`w-1.5 h-1.5 rounded-full ${statusDot(student.status)}`}
+                          />
+                          {student.status || "pending"}
                         </div>
                       </div>
-                    ) : (
-                      <div className="space-y-4">
-                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                          <div className="bg-slate-50 rounded-xl p-3 border border-slate-100">
-                            <label className="text-[8px] font-black uppercase tracking-widest text-slate-400 block mb-1">
-                              Start Date
-                            </label>
-                            <input
-                              type="date"
-                              className="w-full bg-transparent text-xs font-bold outline-none"
-                              value={approveStartDate}
-                              onChange={(e) => setApproveStartDate(e.target.value)}
-                            />
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Right: Detail + Actions */}
+            <div className="lg:col-span-2">
+              {selectedStudent ? (
+                <div className="bg-white/70 backdrop-blur-3xl rounded-[2rem] border border-white shadow-2xl overflow-hidden">
+                  <div className="px-8 py-5 border-b border-slate-100 flex items-start justify-between">
+                    <div className="flex-1 pr-4">
+                      <h2 className="text-xl font-black text-slate-900 mb-1">
+                        {selectedStudent.name || "Student Detail"}
+                      </h2>
+                      <div className="flex flex-wrap items-center gap-2 text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2.5">
+                        <span className="bg-slate-100 text-slate-600 px-2 py-0.5 rounded-md">
+                          {selectedStudent.regNumber}
+                        </span>
+                        <span>·</span>
+                        <span>Applied: {formatDate(selectedStudent.applyDate)}</span>
+                        <span
+                          className={`ml-3 inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase ${statusColor(selectedStudent.status)}`}
+                        >
+                          <div
+                            className={`w-1 h-1 rounded-full ${statusDot(selectedStudent.status)}`}
+                          />
+                          {selectedStudent.status || "pending"}
+                        </span>
+                        {selectedStudent.rejectRemark && (
+                          <span className="ml-2 text-[10px] text-red-500 font-bold uppercase tracking-tight">
+                            · {selectedStudent.rejectRemark}
+                          </span>
+                        )}
+                      </div>
+
+                      {(selectedErpStudent?.course || selectedErpStudent?.stream) && (
+                        <p className="text-xs font-bold text-slate-700 mb-1.5">
+                          {selectedErpStudent.course}
+                          {selectedErpStudent.stream ? ` • ${selectedErpStudent.stream}` : ""}
+                        </p>
+                      )}
+
+                      <div className="flex flex-wrap gap-x-4 gap-y-2 text-[11px] font-semibold text-slate-500">
+                        {selectedErpStudent?.batch && (
+                          <span className="bg-slate-50 px-2 py-0.5 rounded border border-slate-100">
+                            Batch: {selectedErpStudent.batch}
+                          </span>
+                        )}
+                        {selectedErpStudent?.section && (
+                          <span className="bg-slate-50 px-2 py-0.5 rounded border border-slate-100">
+                            Sec: {selectedErpStudent.section}
+                          </span>
+                        )}
+                        {selectedErpStudent?.phone && (
+                          <span className="flex items-center gap-1.5 text-slate-600">
+                            <span>📞</span> {selectedErpStudent.phone}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    <button
+                      onClick={closeModal}
+                      className="text-slate-300 hover:text-red-500 transition-colors p-2"
+                    >
+                      <svg
+                        className="w-5 h-5"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth="2.5"
+                          d="M6 18L18 6M6 6l12 12"
+                        />
+                      </svg>
+                    </button>
+                  </div>
+                  <div className="p-5">
+                    <div className="flex items-center justify-between mb-3">
+                      <h3 className="text-[9px] font-black uppercase tracking-widest text-slate-400">
+                        Application Details
+                      </h3>
+                      <button
+                        onClick={handleModalEditToggle}
+                        className="text-[10px] font-black uppercase tracking-widest text-red-500 hover:text-red-600 transition-colors"
+                      >
+                        {isModalEditing ? "Cancel" : "Edit"}
+                      </button>
+                    </div>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mb-4">
+                      {isModalEditing ? (
+                        <>
+                          {/* Editable Fields in Modal */}
+                          <div className="bg-slate-50 rounded-2xl p-3 border border-slate-100">
+                            <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-1">Session</p>
+                            <p className="text-sm font-black text-slate-800">{editForm.session}</p>
                           </div>
-                          <div className="bg-slate-50 rounded-xl p-3 border border-slate-100">
-                            <label className="text-[8px] font-black uppercase tracking-widest text-slate-400 block mb-1">
-                              End Date
-                            </label>
-                            <input
-                              type="date"
-                              className="w-full bg-transparent text-xs font-bold outline-none"
-                              value={approveEndDate}
-                              onChange={(e) => setApproveEndDate(e.target.value)}
-                            />
-                          </div>
-                          <div className="bg-slate-50 rounded-xl p-3 border border-slate-100">
-                            <label className="text-[8px] font-black uppercase tracking-widest text-slate-400 block mb-1">
-                              Frequency
-                            </label>
+                          <div className="bg-slate-50 rounded-2xl p-3 border border-slate-100">
+                            <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-1">Wing</p>
                             <select
-                              className="w-full bg-transparent text-xs font-bold outline-none"
-                              value={approvePaymentFreq}
-                              onChange={(e) => setApprovePaymentFreq(e.target.value)}
+                              className="w-full text-sm font-black bg-transparent outline-none"
+                              value={editForm.wing}
+                              onChange={(e) => setEditForm({ ...editForm, wing: e.target.value })}
                             >
-                              <option value="">Select Frequency</option>
+                              {masterData?.hostel.map(h => <option key={h} value={h}>{h}</option>)}
+                            </select>
+                          </div>
+                          <div className="bg-slate-50 rounded-2xl p-3 border border-slate-100">
+                            <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-1">Room Type</p>
+                            <select
+                              className="w-full text-sm font-black bg-transparent outline-none"
+                              value={editForm.roomType}
+                              onChange={(e) => setEditForm({ ...editForm, roomType: e.target.value })}
+                            >
+                              {masterData?.roomType.map(rt => <option key={rt} value={rt}>{rt}</option>)}
+                            </select>
+                          </div>
+                          <div className="bg-slate-50 rounded-2xl p-3 border border-slate-100">
+                            <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-1">Room No</p>
+                            <select
+                              className="w-full text-xs font-black bg-transparent outline-none"
+                              value={editForm?.roomNo || ""}
+                              onChange={(e) => setEditForm({ ...editForm, roomNo: e.target.value })}
+                            >
+                              {editForm && getFilteredRooms(editForm._id).map((rn: any) => (
+                                <option key={rn} value={rn}>{rn}</option>
+                              ))}
+                            </select>
+                          </div>
+                          <div className="bg-slate-50 rounded-xl p-2 border border-slate-100">
+                            <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-1">Bed No</p>
+                            <select
+                              className="w-full text-xs font-black bg-transparent outline-none"
+                              value={editForm?.bedNo || ""}
+                              onChange={(e) => setEditForm({ ...editForm, bedNo: e.target.value })}
+                            >
+                              {editForm && getFilteredBeds(editForm.roomNo, editForm._id).map((b: any) => (
+                                <option key={b.bedName} value={b.bedName}>{b.bedName}</option>
+                              ))}
+                            </select>
+                          </div>
+                          <div className="bg-slate-50 rounded-2xl p-3 border border-slate-100 col-span-2 sm:col-span-3">
+                            <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-1">Remark</p>
+                            <p className="text-sm font-black text-slate-800">{editForm?.remark || "—"}</p>
+                          </div>
+                          <div className="col-span-2 sm:col-span-3">
+                            <button
+                              onClick={handleModalSave}
+                              className="w-full bg-slate-900 text-white py-2 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-black transition-all"
+                            >
+                              {processingId ? "Saving..." : "Save Changes"}
+                            </button>
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          {[
+                            { label: "Session", value: selectedStudent?.session },
+                            { label: "Wing", value: selectedStudent?.wing },
+                            { label: "Room Type", value: selectedStudent?.roomType },
+                            { label: "Room No", value: selectedStudent?.roomNo },
+                            { label: "Bed No", value: selectedStudent?.bedNo },
+                            { label: "Remark", value: selectedStudent?.remark || "—" },
+                          ].map(({ label, value }) => (
+                            <div
+                              key={label}
+                              className={`bg-slate-50 rounded-xl p-2.5 border border-slate-100 ${label === "Remark" ? "col-span-2 sm:col-span-3" : ""}`}
+                            >
+                              <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-0.5">
+                                {label}
+                              </p>
+                              <p className="text-xs font-black text-slate-800 leading-tight">
+                                {value || "—"}
+                              </p>
+                            </div>
+                          ))}
+                        </>
+                      )}
+                    </div>
+
+                    {selectedStudent.status === "pending" && (
+                      <div className="mt-4 pt-4 border-t border-slate-100 animate-slideUp">
+                        <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-4 flex items-center gap-2">
+                          <span className="w-1.5 h-1.5 rounded-full bg-indigo-500" />
+                          Final ERP Configuration
+                        </p>
+                        {showRejectBox ? (
+                          <div className="space-y-3">
+                            <textarea
+                              value={rejectRemark}
+                              onChange={(e) => setRejectRemark(e.target.value)}
+                              placeholder="Reason for rejection..."
+                              className="w-full p-3 border border-red-100 rounded-xl text-xs font-bold bg-red-50/30 outline-none focus:ring-2 focus:ring-red-100 transition-all resize-none"
+                              rows={2}
+                            />
+                            <div className="flex gap-2">
+                              <button
+                                onClick={handleReject}
+                                disabled={!!processingId || !rejectRemark.trim()}
+                                className="bg-red-600 text-white px-5 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest hover:bg-red-700 transition-all disabled:grayscale"
+                              >
+                                {processingId ? "Processing..." : "Confirm Reject"}
+                              </button>
+                              <button
+                                onClick={() => setShowRejectBox(false)}
+                                className="border border-slate-200 text-slate-400 px-5 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest hover:text-slate-600 transition-all"
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="space-y-4">
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                              <div className="bg-slate-50 rounded-xl p-3 border border-slate-100">
+                                <label className="text-[8px] font-black uppercase tracking-widest text-slate-400 block mb-1">
+                                  Start Date
+                                </label>
+                                <input
+                                  type="date"
+                                  className="w-full bg-transparent text-xs font-bold outline-none"
+                                  value={approveStartDate}
+                                  onChange={(e) => setApproveStartDate(e.target.value)}
+                                />
+                              </div>
+                              <div className="bg-slate-50 rounded-xl p-3 border border-slate-100">
+                                <label className="text-[8px] font-black uppercase tracking-widest text-slate-400 block mb-1">
+                                  End Date
+                                </label>
+                                <input
+                                  type="date"
+                                  className="w-full bg-transparent text-xs font-bold outline-none"
+                                  value={approveEndDate}
+                                  onChange={(e) => setApproveEndDate(e.target.value)}
+                                />
+                              </div>
+                              <div className="bg-slate-50 rounded-xl p-3 border border-slate-100">
+                                <label className="text-[8px] font-black uppercase tracking-widest text-slate-400 block mb-1">
+                                  Frequency
+                                </label>
+                                <select
+                                  className="w-full bg-transparent text-xs font-bold outline-none"
+                                  value={approvePaymentFreq}
+                                  onChange={(e) => setApprovePaymentFreq(e.target.value)}
+                                >
+                                  <option value="">Select Frequency</option>
+                                  {masterData?.paymentFrequency.map((pf) => (
+                                    <option key={pf} value={pf}>
+                                      {pf}
+                                    </option>
+                                  ))}
+                                </select>
+                              </div>
+                            </div>
+
+                            <div className="flex items-center gap-2">
+                              <button
+                                onClick={async () => {
+                                  if (!selectedStudent) return;
+                                  if (!approveStartDate || !approveEndDate || !approvePaymentFreq) {
+                                    alert("Please set the dates and frequency first.");
+                                    return;
+                                  }
+                                  const updatedStudent = {
+                                    ...selectedStudent,
+                                    startDate: approveStartDate,
+                                    endDate: approveEndDate,
+                                    paymentFreq: approvePaymentFreq,
+                                  };
+                                  await handleAssignToERP(updatedStudent);
+                                }}
+                                disabled={!!processingId}
+                                className="flex-1 bg-indigo-600 text-white py-3 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-indigo-700 active:scale-[0.98] transition-all shadow-lg shadow-indigo-100 flex items-center justify-center gap-2"
+                              >
+                                {processingId ? (
+                                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                                ) : (
+                                  <>
+                                    <span>Finalize & Push to ERP</span>
+                                    <svg
+                                      viewBox="0 0 24 24"
+                                      fill="none"
+                                      stroke="currentColor"
+                                      strokeWidth="2.5"
+                                      strokeLinecap="round"
+                                      strokeLinejoin="round"
+                                      className="w-3 h-3"
+                                    >
+                                      <path d="M5 12h14M12 5l7 7-7 7" />
+                                    </svg>
+                                  </>
+                                )}
+                              </button>
+                              <button
+                                onClick={() => setShowRejectBox(true)}
+                                className="bg-red-50 text-red-600 border border-red-100 px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-red-600 hover:text-white transition-all"
+                              >
+                                Reject
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <div className="bg-white/70 backdrop-blur-3xl rounded-[2rem] border border-white shadow-2xl h-full min-h-[400px] flex items-center justify-center">
+                  <div className="text-center">
+                    <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4 text-2xl">
+                      📋
+                    </div>
+                    <p className="text-slate-400 font-black text-lg">
+                      Select an Application
+                    </p>
+                    <p className="text-slate-300 text-xs font-bold uppercase tracking-widest mt-2">
+                      Click a student from the left to review
+                    </p>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          
+      {/* Tab Switcher */}
+      <div className="max-w-7xl mx-auto mb-6 flex gap-4">
+        <button
+          onClick={() => setActiveTab("allocations")}
+          className={`px-6 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${
+            activeTab === "allocations" ? "bg-slate-900 text-white shadow-lg shadow-slate-200" : "bg-white text-slate-500 hover:bg-slate-50 border border-slate-200"
+          }`}
+        >
+          Full Registry
+        </button>
+        <button
+          onClick={() => setActiveTab("reports")}
+          className={`px-6 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${
+            activeTab === "reports" ? "bg-slate-900 text-white shadow-lg shadow-slate-200" : "bg-white text-slate-500 hover:bg-slate-50 border border-slate-200"
+          }`}
+        >
+          Roommates Report
+        </button>
+      </div>
+
+      {activeTab === "reports" ? (
+        <div className="max-w-7xl mx-auto mb-8 bg-white/70 backdrop-blur-3xl rounded-[2rem] border border-white shadow-2xl p-8">
+          <div className="mb-6 flex items-center justify-between">
+            <div>
+              <h2 className="text-2xl font-black tracking-tight leading-tight">Roommates Report</h2>
+              <p className="text-slate-400 text-xs font-bold uppercase tracking-widest mt-1">Search ERP for room occupants</p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+            {/* Wing */}
+            <div className="bg-slate-50 rounded-xl p-3 border border-slate-100">
+              <label className="text-[8px] font-black uppercase tracking-widest text-slate-400 block mb-1">Hostel Wing</label>
+              <select
+                className="w-full text-sm font-bold bg-transparent outline-none cursor-pointer"
+                value={reportForm.wing}
+                onChange={(e) => {
+                  const wing = e.target.value;
+                  setReportForm({ wing, roomType: "", roomName: "" });
+                  setReportAvailableRooms([]);
+                }}
+              >
+                <option value="">Select Wing</option>
+                {masterData?.hostel?.map((h: string) => (
+                  <option key={h} value={h}>{h}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Room Type */}
+            <div className="bg-slate-50 rounded-xl p-3 border border-slate-100">
+              <label className="text-[8px] font-black uppercase tracking-widest text-slate-400 block mb-1">Room Type</label>
+              <select
+                className="w-full text-sm font-bold bg-transparent outline-none cursor-pointer"
+                value={reportForm.roomType}
+                onChange={(e) => {
+                  const roomType = e.target.value;
+                  setReportForm((prev) => ({ ...prev, roomType, roomName: "" }));
+                  fetchReportRooms(reportForm.wing, roomType);
+                }}
+                disabled={!reportForm.wing}
+              >
+                <option value="">Select Type</option>
+                {masterData?.roomType?.map((rt: string) => (
+                  <option key={rt} value={rt}>{rt}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Room Identifier */}
+            <div className="bg-slate-50 rounded-xl p-3 border border-slate-100">
+              <label className="text-[8px] font-black uppercase tracking-widest text-slate-400 block mb-1">Room Identifier</label>
+              <select
+                className="w-full text-sm font-bold bg-transparent outline-none cursor-pointer"
+                value={reportForm.roomName}
+                onChange={(e) => setReportForm((prev) => ({ ...prev, roomName: e.target.value }))}
+                disabled={!reportForm.wing || !reportForm.roomType || reportAvailableRooms.length === 0}
+              >
+                <option value="">
+                  {reportForm.wing && reportForm.roomType && reportAvailableRooms.length === 0
+                    ? "No rooms found"
+                    : "Select Room"}
+                </option>
+                {Array.from(new Set(reportAvailableRooms.map((r: any) => r.roomName))).map((rn: any) => (
+                  <option key={rn} value={rn}>{rn}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Search Button */}
+            <div className="flex items-end">
+              <button
+                onClick={handleFetchReport}
+                disabled={reportLoading || !reportForm.roomName}
+                className="w-full h-[58px] bg-slate-900 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-800 transition-all shadow-lg shadow-slate-200 disabled:opacity-40 flex items-center justify-center gap-2"
+              >
+                {reportLoading ? (
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  <>
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+                    Search ERP
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+
+          {/* Table */}
+          <div className="overflow-x-auto rounded-xl border border-slate-100">
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="bg-slate-50">
+                  <th className="px-4 py-3 text-[10px] font-black uppercase tracking-widest text-slate-400 border-b border-slate-100 whitespace-nowrap">S.No</th>
+                  <th className="px-4 py-3 text-[10px] font-black uppercase tracking-widest text-slate-400 border-b border-slate-100 whitespace-nowrap">Roll No.</th>
+                  <th className="px-4 py-3 text-[10px] font-black uppercase tracking-widest text-slate-400 border-b border-slate-100 whitespace-nowrap">Name</th>
+                  <th className="px-4 py-3 text-[10px] font-black uppercase tracking-widest text-slate-400 border-b border-slate-100 whitespace-nowrap">Father Name</th>
+                  <th className="px-4 py-3 text-[10px] font-black uppercase tracking-widest text-slate-400 border-b border-slate-100 whitespace-nowrap">Class</th>
+                  <th className="px-4 py-3 text-[10px] font-black uppercase tracking-widest text-slate-400 border-b border-slate-100 whitespace-nowrap">Stream</th>
+                  <th className="px-4 py-3 text-[10px] font-black uppercase tracking-widest text-slate-400 border-b border-slate-100 whitespace-nowrap">Year</th>
+                  <th className="px-4 py-3 text-[10px] font-black uppercase tracking-widest text-slate-400 border-b border-slate-100 whitespace-nowrap">Section</th>
+                  <th className="px-4 py-3 text-[10px] font-black uppercase tracking-widest text-slate-400 border-b border-slate-100 whitespace-nowrap">Category</th>
+                  <th className="px-4 py-3 text-[10px] font-black uppercase tracking-widest text-slate-400 border-b border-slate-100 whitespace-nowrap">Adm. Category</th>
+                  <th className="px-4 py-3 text-[10px] font-black uppercase tracking-widest text-slate-400 border-b border-slate-100 whitespace-nowrap">Hostel Name</th>
+                  <th className="px-4 py-3 text-[10px] font-black uppercase tracking-widest text-slate-400 border-b border-slate-100 whitespace-nowrap">Room Name</th>
+                  <th className="px-4 py-3 text-[10px] font-black uppercase tracking-widest text-slate-400 border-b border-slate-100 whitespace-nowrap">Room Type</th>
+                  <th className="px-4 py-3 text-[10px] font-black uppercase tracking-widest text-slate-400 border-b border-slate-100 whitespace-nowrap">Bed Name</th>
+                  <th className="px-4 py-3 text-[10px] font-black uppercase tracking-widest text-slate-400 border-b border-slate-100 whitespace-nowrap">Frequency</th>
+                  <th className="px-4 py-3 text-[10px] font-black uppercase tracking-widest text-slate-400 border-b border-slate-100 whitespace-nowrap">Start Date</th>
+                  <th className="px-4 py-3 text-[10px] font-black uppercase tracking-widest text-slate-400 border-b border-slate-100 whitespace-nowrap">End Date</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {reportData.length === 0 ? (
+                  <tr>
+                    <td colSpan={17} className="px-8 py-16 text-center">
+                      <p className="text-slate-400 font-black text-sm">No occupants found.</p>
+                    </td>
+                  </tr>
+                ) : (
+                  reportData.map((row, idx) => (
+                    <tr key={idx} className="hover:bg-slate-50 transition-colors">
+                      <td className="px-4 py-3 text-xs font-bold text-slate-500 whitespace-nowrap">{idx + 1}</td>
+                      <td className="px-4 py-3 text-xs font-black text-slate-800 whitespace-nowrap">{row.regNo || "-"}</td>
+                      <td className="px-4 py-3 text-xs font-bold text-slate-800 whitespace-nowrap">{row.name || "-"}</td>
+                      <td className="px-4 py-3 text-xs font-bold text-slate-600 whitespace-nowrap">{row.fatherName || "-"}</td>
+                      <td className="px-4 py-3 text-xs font-bold text-slate-600 whitespace-nowrap">{row.course || "-"}</td>
+                      <td className="px-4 py-3 text-xs font-bold text-slate-600 whitespace-nowrap">{row.stream || "-"}</td>
+                      <td className="px-4 py-3 text-xs font-bold text-slate-600 whitespace-nowrap">{row.batch || "-"}</td>
+                      <td className="px-4 py-3 text-xs font-bold text-slate-600 whitespace-nowrap">{row.section || "-"}</td>
+                      <td className="px-4 py-3 text-xs font-bold text-slate-600 whitespace-nowrap">{row.category || "-"}</td>
+                      <td className="px-4 py-3 text-xs font-bold text-slate-600 whitespace-nowrap">{row.oldNew || "-"}</td>
+                      <td className="px-4 py-3 text-xs font-bold text-slate-600 whitespace-nowrap">{row.hostel || "-"}</td>
+                      <td className="px-4 py-3 whitespace-nowrap">
+                        <span className="text-[10px] font-black px-2 py-1 rounded bg-indigo-50 text-indigo-700 border border-indigo-100">{row.hostelRoomName || "-"}</span>
+                      </td>
+                      <td className="px-4 py-3 text-xs font-bold text-slate-600 whitespace-nowrap">{row.hostelRoomType || "-"}</td>
+                      <td className="px-4 py-3 whitespace-nowrap">
+                        <span className="text-[10px] font-black px-2 py-1 rounded bg-amber-50 text-amber-700 border border-amber-100">{row.hostelRoomBedName || "-"}</span>
+                      </td>
+                      <td className="px-4 py-3 text-xs font-bold text-slate-600 whitespace-nowrap">{row.hostelPaymentFrequency || "-"}</td>
+                      <td className="px-4 py-3 text-xs font-bold text-slate-500 whitespace-nowrap">{row.hostelStartDate ? new Date(row.hostelStartDate).toLocaleDateString('en-GB') : "-"}</td>
+                      <td className="px-4 py-3 text-xs font-bold text-slate-500 whitespace-nowrap">{row.hostelEndDate ? new Date(row.hostelEndDate).toLocaleDateString('en-GB') : "-"}</td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      ) : (
+        <>
+{/* Full Registry Table */}
+          <div className="max-w-7xl mx-auto bg-white/70 backdrop-blur-3xl rounded-[3rem] border border-white shadow-2xl overflow-hidden min-h-[60vh]">
+            <div className="px-8 py-5 border-b border-slate-100">
+              <h2 className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                Full Registry
+              </h2>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left">
+                <thead>
+                  <tr className="bg-slate-900/5 backdrop-blur-md">
+                    <th className="px-8 py-5 text-[10px] font-black uppercase text-slate-400">
+                      Registry Detail
+                    </th>
+                    <th className="px-8 py-5 text-[10px] font-black uppercase text-slate-400">
+                      Wing Configuration
+                    </th>
+                    <th className="px-8 py-5 text-[10px] font-black uppercase text-slate-400">
+                      Room Metadata
+                    </th>
+                    <th className="px-8 py-5 text-[10px] font-black uppercase text-slate-400">
+                      Billing Detail
+                    </th>
+                    <th className="px-8 py-5 text-[10px] font-black uppercase text-slate-400">
+                      Current Status
+                    </th>
+                    <th className="px-8 py-5 text-[10px] font-black uppercase text-slate-400 text-center">
+                      Control
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {loading ? (
+                    Array(6)
+                      .fill(0)
+                      .map((_, i) => (
+                        <tr key={i} className="animate-pulse">
+                          <td colSpan={6} className="px-8 py-10">
+                            <div className="h-4 bg-slate-100 rounded-full" />
+                          </td>
+                        </tr>
+                      ))
+                  ) : filteredStudents.length > 0 ? (
+                    filteredStudents.map((student) => (
+                      <tr
+                        key={student._id}
+                        className={`transition-all ${editingId === student._id ? "bg-red-50/50 ring-1 ring-inset ring-red-100" : "hover:bg-white"}`}
+                      >
+                        <td className="px-8 py-6">
+                          <div className="text-[10px] text-orange-500 font-black uppercase tracking-[0.2em] mb-1.5 flex items-center gap-2">
+                            <span className="w-2 h-2 bg-orange-500 rounded-full animate-pulse" />
+                            {formatDate(student.applyDate)}
+                          </div>
+                          <div className="font-black text-slate-900 text-lg leading-none">
+                            {student.regNumber}
+                          </div>
+                          {student.name && (
+                            <div className="text-xs text-slate-600 font-bold mt-1">
+                              {student.name}
+                            </div>
+                          )}
+                          <div className="text-[9px] text-slate-400 font-black mt-2 uppercase bg-slate-50 px-2 py-0.5 rounded-md inline-block">
+                            {student.session}
+                          </div>
+                        </td>
+                        <td className="px-8 py-6">
+                          {editingId === student._id ? (
+                            <div className="flex flex-col gap-2">
+                              <select
+                                className="text-[11px] font-bold border border-slate-200 rounded-lg p-1"
+                                value={editForm.wing}
+                                onChange={(e) =>
+                                  setEditForm({ ...editForm, wing: e.target.value })
+                                }
+                              >
+                                <option value="">Wing</option>
+                                {masterData?.hostel.map((h) => (
+                                  <option key={h} value={h}>
+                                    {h}
+                                  </option>
+                                ))}
+                              </select>
+                              <select
+                                className="text-[11px] font-bold border border-slate-200 rounded-lg p-1"
+                                value={editForm.roomType}
+                                onChange={(e) =>
+                                  setEditForm({
+                                    ...editForm,
+                                    roomType: e.target.value,
+                                  })
+                                }
+                              >
+                                <option value="">Room Type</option>
+                                {masterData?.roomType.map((rt) => (
+                                  <option key={rt} value={rt}>
+                                    {rt}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                          ) : (
+                            <div>
+                              <div className="text-xs font-black text-slate-800 uppercase line-clamp-1">
+                                {student.wing}
+                              </div>
+                              <div className="text-[10px] text-slate-400 font-black uppercase">
+                                {student.roomType}
+                              </div>
+                            </div>
+                          )}
+                        </td>
+                        <td className="px-8 py-6">
+                          {editingId === student._id && editForm ? (
+                            <div className="flex flex-col gap-2">
+                              <select
+                                className="text-[11px] font-bold border border-slate-200 rounded-lg p-1"
+                                value={editForm.roomNo || ""}
+                                onChange={(e) =>
+                                  setEditForm({
+                                    ...editForm,
+                                    roomNo: e.target.value,
+                                  })
+                                }
+                              >
+                                <option value="">Room</option>
+                                {getFilteredRooms(editForm._id).map((rn: any) => (
+                                  <option key={rn} value={rn}>
+                                    {rn}
+                                  </option>
+                                ))}
+                              </select>
+                              <select
+                                className="text-[11px] font-bold border border-slate-200 rounded-lg p-1"
+                                value={editForm.bedNo || ""}
+                                onChange={(e) =>
+                                  setEditForm({
+                                    ...editForm,
+                                    bedNo: e.target.value,
+                                  })
+                                }
+                              >
+                                <option value="">Bed</option>
+                                {getFilteredBeds(editForm.roomNo, editForm._id).map((b: any) => (
+                                  <option key={b.bedName} value={b.bedName}>
+                                    {b.bedName}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                          ) : (
+                            <div className="flex gap-2">
+                              <div className="px-2 py-1 bg-red-100 text-red-600 rounded-lg text-[10px] font-black uppercase">
+                                RM {student.roomNo}
+                              </div>
+                              <div className="px-2 py-1 bg-slate-900 text-white rounded-lg text-[10px] font-black uppercase">
+                                BD {student.bedNo}
+                              </div>
+                            </div>
+                          )}
+                        </td>
+                        <td className="px-8 py-6">
+                          {editingId === student._id && editForm ? (
+                            <select
+                              className="text-[11px] font-bold border border-slate-200 rounded-lg p-1 w-full"
+                              value={editForm.paymentFreq || ""}
+                              onChange={(e) =>
+                                setEditForm({
+                                  ...editForm,
+                                  paymentFreq: e.target.value,
+                                })
+                              }
+                            >
+                              <option value="">Frequency</option>
                               {masterData?.paymentFrequency.map((pf) => (
                                 <option key={pf} value={pf}>
                                   {pf}
                                 </option>
                               ))}
                             </select>
-                          </div>
-                        </div>
-
-                        <div className="flex items-center gap-2">
-                          <button
-                            onClick={async () => {
-                              if (!selectedStudent) return;
-                              if (!approveStartDate || !approveEndDate || !approvePaymentFreq) {
-                                alert("Please set the dates and frequency first.");
-                                return;
-                              }
-                              const updatedStudent = {
-                                ...selectedStudent,
-                                startDate: approveStartDate,
-                                endDate: approveEndDate,
-                                paymentFreq: approvePaymentFreq,
-                              };
-                              await handleAssignToERP(updatedStudent);
-                            }}
-                            disabled={!!processingId}
-                            className="flex-1 bg-indigo-600 text-white py-3 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-indigo-700 active:scale-[0.98] transition-all shadow-lg shadow-indigo-100 flex items-center justify-center gap-2"
-                          >
-                            {processingId ? (
-                              <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                            ) : (
-                              <>
-                                <span>Finalize & Push to ERP</span>
-                                <svg
-                                  viewBox="0 0 24 24"
-                                  fill="none"
-                                  stroke="currentColor"
-                                  strokeWidth="2.5"
-                                  strokeLinecap="round"
-                                  strokeLinejoin="round"
-                                  className="w-3 h-3"
-                                >
-                                  <path d="M5 12h14M12 5l7 7-7 7" />
-                                </svg>
-                              </>
-                            )}
-                          </button>
-                          <button
-                            onClick={() => setShowRejectBox(true)}
-                            className="bg-red-50 text-red-600 border border-red-100 px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-red-600 hover:text-white transition-all"
-                          >
-                            Reject
-                          </button>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-            </div>
-          ) : (
-            <div className="bg-white/70 backdrop-blur-3xl rounded-[2rem] border border-white shadow-2xl h-full min-h-[400px] flex items-center justify-center">
-              <div className="text-center">
-                <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4 text-2xl">
-                  📋
-                </div>
-                <p className="text-slate-400 font-black text-lg">
-                  Select an Application
-                </p>
-                <p className="text-slate-300 text-xs font-bold uppercase tracking-widest mt-2">
-                  Click a student from the left to review
-                </p>
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Full Registry Table */}
-      <div className="max-w-7xl mx-auto bg-white/70 backdrop-blur-3xl rounded-[3rem] border border-white shadow-2xl overflow-hidden min-h-[60vh]">
-        <div className="px-8 py-5 border-b border-slate-100">
-          <h2 className="text-[10px] font-black uppercase tracking-widest text-slate-400">
-            Full Registry
-          </h2>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-left">
-            <thead>
-              <tr className="bg-slate-900/5 backdrop-blur-md">
-                <th className="px-8 py-5 text-[10px] font-black uppercase text-slate-400">
-                  Registry Detail
-                </th>
-                <th className="px-8 py-5 text-[10px] font-black uppercase text-slate-400">
-                  Wing Configuration
-                </th>
-                <th className="px-8 py-5 text-[10px] font-black uppercase text-slate-400">
-                  Room Metadata
-                </th>
-                <th className="px-8 py-5 text-[10px] font-black uppercase text-slate-400">
-                  Billing Detail
-                </th>
-                <th className="px-8 py-5 text-[10px] font-black uppercase text-slate-400">
-                  Current Status
-                </th>
-                <th className="px-8 py-5 text-[10px] font-black uppercase text-slate-400 text-center">
-                  Control
-                </th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {loading ? (
-                Array(6)
-                  .fill(0)
-                  .map((_, i) => (
-                    <tr key={i} className="animate-pulse">
-                      <td colSpan={6} className="px-8 py-10">
-                        <div className="h-4 bg-slate-100 rounded-full" />
-                      </td>
-                    </tr>
-                  ))
-              ) : filteredStudents.length > 0 ? (
-                filteredStudents.map((student) => (
-                  <tr
-                    key={student._id}
-                    className={`transition-all ${editingId === student._id ? "bg-red-50/50 ring-1 ring-inset ring-red-100" : "hover:bg-white"}`}
-                  >
-                    <td className="px-8 py-6">
-                      <div className="text-[10px] text-orange-500 font-black uppercase tracking-[0.2em] mb-1.5 flex items-center gap-2">
-                        <span className="w-2 h-2 bg-orange-500 rounded-full animate-pulse" />
-                        {formatDate(student.applyDate)}
-                      </div>
-                      <div className="font-black text-slate-900 text-lg leading-none">
-                        {student.regNumber}
-                      </div>
-                      {student.name && (
-                        <div className="text-xs text-slate-600 font-bold mt-1">
-                          {student.name}
-                        </div>
-                      )}
-                      <div className="text-[9px] text-slate-400 font-black mt-2 uppercase bg-slate-50 px-2 py-0.5 rounded-md inline-block">
-                        {student.session}
-                      </div>
-                    </td>
-                    <td className="px-8 py-6">
-                      {editingId === student._id ? (
-                        <div className="flex flex-col gap-2">
-                          <select
-                            className="text-[11px] font-bold border border-slate-200 rounded-lg p-1"
-                            value={editForm.wing}
-                            onChange={(e) =>
-                              setEditForm({ ...editForm, wing: e.target.value })
-                            }
-                          >
-                            <option value="">Wing</option>
-                            {masterData?.hostel.map((h) => (
-                              <option key={h} value={h}>
-                                {h}
-                              </option>
-                            ))}
-                          </select>
-                          <select
-                            className="text-[11px] font-bold border border-slate-200 rounded-lg p-1"
-                            value={editForm.roomType}
-                            onChange={(e) =>
-                              setEditForm({
-                                ...editForm,
-                                roomType: e.target.value,
-                              })
-                            }
-                          >
-                            <option value="">Room Type</option>
-                            {masterData?.roomType.map((rt) => (
-                              <option key={rt} value={rt}>
-                                {rt}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-                      ) : (
-                        <div>
-                          <div className="text-xs font-black text-slate-800 uppercase line-clamp-1">
-                            {student.wing}
-                          </div>
-                          <div className="text-[10px] text-slate-400 font-black uppercase">
-                            {student.roomType}
-                          </div>
-                        </div>
-                      )}
-                    </td>
-                    <td className="px-8 py-6">
-                      {editingId === student._id && editForm ? (
-                        <div className="flex flex-col gap-2">
-                          <select
-                            className="text-[11px] font-bold border border-slate-200 rounded-lg p-1"
-                            value={editForm.roomNo || ""}
-                            onChange={(e) =>
-                              setEditForm({
-                                ...editForm,
-                                roomNo: e.target.value,
-                              })
-                            }
-                          >
-                            <option value="">Room</option>
-                            {getFilteredRooms(editForm._id).map((rn: any) => (
-                              <option key={rn} value={rn}>
-                                {rn}
-                              </option>
-                            ))}
-                          </select>
-                          <select
-                            className="text-[11px] font-bold border border-slate-200 rounded-lg p-1"
-                            value={editForm.bedNo || ""}
-                            onChange={(e) =>
-                              setEditForm({
-                                ...editForm,
-                                bedNo: e.target.value,
-                              })
-                            }
-                          >
-                            <option value="">Bed</option>
-                            {getFilteredBeds(editForm.roomNo, editForm._id).map((b: any) => (
-                              <option key={b.bedName} value={b.bedName}>
-                                {b.bedName}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-                      ) : (
-                        <div className="flex gap-2">
-                          <div className="px-2 py-1 bg-red-100 text-red-600 rounded-lg text-[10px] font-black uppercase">
-                            RM {student.roomNo}
-                          </div>
-                          <div className="px-2 py-1 bg-slate-900 text-white rounded-lg text-[10px] font-black uppercase">
-                            BD {student.bedNo}
-                          </div>
-                        </div>
-                      )}
-                    </td>
-                    <td className="px-8 py-6">
-                      {editingId === student._id && editForm ? (
-                        <select
-                          className="text-[11px] font-bold border border-slate-200 rounded-lg p-1 w-full"
-                          value={editForm.paymentFreq || ""}
-                          onChange={(e) =>
-                            setEditForm({
-                              ...editForm,
-                              paymentFreq: e.target.value,
-                            })
-                          }
-                        >
-                          <option value="">Frequency</option>
-                          {masterData?.paymentFrequency.map((pf) => (
-                            <option key={pf} value={pf}>
-                              {pf}
-                            </option>
-                          ))}
-                        </select>
-                      ) : (
-                        <div>
-                          <div className="text-[10px] font-black text-slate-500 uppercase italic">
-                            {student.paymentFreq}
-                          </div>
-                          {(student.startDate || student.endDate) && (
-                            <div className="text-[9px] text-slate-400 font-bold mt-1">
-                              {formatDate(student.startDate)} — {formatDate(student.endDate)}
+                          ) : (
+                            <div>
+                              <div className="text-[10px] font-black text-slate-500 uppercase italic">
+                                {student.paymentFreq}
+                              </div>
+                              {(student.startDate || student.endDate) && (
+                                <div className="text-[9px] text-slate-400 font-bold mt-1">
+                                  {formatDate(student.startDate)} — {formatDate(student.endDate)}
+                                </div>
+                              )}
                             </div>
                           )}
-                        </div>
-                      )}
-                    </td>
-                    <td className="px-8 py-6">
-                      <div
-                        className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest ${statusColor(student.status)}`}
-                      >
-                        <div
-                          className={`w-1.5 h-1.5 rounded-full ${statusDot(student.status)}`}
-                        />
-                        {student.status || "pending"}
-                      </div>
-                    </td>
-                    <td className="px-8 py-6">
-                      <div className="flex items-center justify-center gap-2">
-                        {/* Edit is locked once approved/assigned */}
-                        {student.status !== "approved" &&
-                          student.status !== "assigned" && (
-                            editingId === student._id ? (
-                              <button
-                                onClick={handleSaveEdit}
-                                disabled={!!processingId}
-                                className="bg-slate-900 text-white p-2 rounded-xl hover:scale-105 active:scale-95 transition-all shadow-lg"
-                              >
-                                <svg
-                                  className="w-4 h-4"
-                                  fill="none"
-                                  stroke="currentColor"
-                                  viewBox="0 0 24 24"
-                                >
-                                  <path
-                                    strokeLinecap="round"
-                                    strokeLinejoin="round"
-                                    strokeWidth="3"
-                                    d="M5 13l4 4L19 7"
-                                  />
-                                </svg>
-                              </button>
-                            ) : (
-                              <button
-                                onClick={() => handleEditClick(student)}
-                                className="bg-white border-2 border-slate-100 text-slate-400 p-2 rounded-xl hover:border-red-500 hover:text-red-500 transition-all font-black text-xs"
-                              >
-                                <svg
-                                  className="w-4 h-4"
-                                  fill="none"
-                                  stroke="currentColor"
-                                  viewBox="0 0 24 24"
-                                >
-                                  <path
-                                    strokeLinecap="round"
-                                    strokeLinejoin="round"
-                                    strokeWidth="3"
-                                    d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"
-                                  />
-                                </svg>
-                              </button>
-                            )
-                          )}
-                        {student.status === "pending" && (
-                          <button
-                            onClick={() => {
-                              setSelectedStudent(student);
-                              setApproveStartDate("");
-                              setApproveEndDate("");
-                            }}
-                            className="bg-indigo-600 text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-xl shadow-indigo-100 hover:bg-indigo-700 active:scale-95 transition-all"
+                        </td>
+                        <td className="px-8 py-6">
+                          <div
+                            className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest ${statusColor(student.status)}`}
                           >
-                            Finalize ERP
-                          </button>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                ))
-              ) : (
-                <tr>
-                  <td colSpan={6} className="px-8 py-20 text-center">
-                    <p className="text-slate-400 font-black text-lg">
-                      No student records found yet.
-                    </p>
-                    <p className="text-slate-300 text-xs font-bold uppercase tracking-widest mt-2">
-                      Waiting for new registrations...
-                    </p>
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
+                            <div
+                              className={`w-1.5 h-1.5 rounded-full ${statusDot(student.status)}`}
+                            />
+                            {student.status || "pending"}
+                          </div>
+                        </td>
+                        <td className="px-8 py-6">
+                          <div className="flex items-center justify-center gap-2">
+                            {/* Edit is locked once approved/assigned */}
+                            {student.status !== "approved" &&
+                              student.status !== "assigned" && (
+                                editingId === student._id ? (
+                                  <button
+                                    onClick={handleSaveEdit}
+                                    disabled={!!processingId}
+                                    className="bg-slate-900 text-white p-2 rounded-xl hover:scale-105 active:scale-95 transition-all shadow-lg"
+                                  >
+                                    <svg
+                                      className="w-4 h-4"
+                                      fill="none"
+                                      stroke="currentColor"
+                                      viewBox="0 0 24 24"
+                                    >
+                                      <path
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                        strokeWidth="3"
+                                        d="M5 13l4 4L19 7"
+                                      />
+                                    </svg>
+                                  </button>
+                                ) : (
+                                  <button
+                                    onClick={() => handleEditClick(student)}
+                                    className="bg-white border-2 border-slate-100 text-slate-400 p-2 rounded-xl hover:border-red-500 hover:text-red-500 transition-all font-black text-xs"
+                                  >
+                                    <svg
+                                      className="w-4 h-4"
+                                      fill="none"
+                                      stroke="currentColor"
+                                      viewBox="0 0 24 24"
+                                    >
+                                      <path
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                        strokeWidth="3"
+                                        d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"
+                                      />
+                                    </svg>
+                                  </button>
+                                )
+                              )}
+                            {student.status === "pending" && (
+                              <button
+                                onClick={() => {
+                                  setSelectedStudent(student);
+                                  setApproveStartDate("");
+                                  setApproveEndDate("");
+                                }}
+                                className="bg-indigo-600 text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-xl shadow-indigo-100 hover:bg-indigo-700 active:scale-95 transition-all"
+                              >
+                                Finalize ERP
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr>
+                      <td colSpan={6} className="px-8 py-20 text-center">
+                        <p className="text-slate-400 font-black text-lg">
+                          No student records found yet.
+                        </p>
+                        <p className="text-slate-300 text-xs font-bold uppercase tracking-widest mt-2">
+                          Waiting for new registrations...
+                        </p>
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }

@@ -134,4 +134,10 @@ export const hostelService = {
     const response = await localApi.delete(`/api/held-rooms/${encodeURIComponent(roomName)}/${encodeURIComponent(bedName)}`);
     return response.data;
   },
+
+  // Reports
+  getStudentReports: async (payload: any) => {
+    const response = await api.post(`/api/hostelReport/studentReports`, payload);
+    return response.data;
+  }
 };
