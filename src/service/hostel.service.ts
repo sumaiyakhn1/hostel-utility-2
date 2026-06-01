@@ -118,4 +118,20 @@ export const hostelService = {
     const response = await localApi.get(`/api/students/${regNumber}`);
     return response.data;
   },
+
+  // Hold Room management
+  getHeldRooms: async () => {
+    const response = await localApi.get(`/api/held-rooms`);
+    return response.data;
+  },
+
+  holdRoom: async (roomName: string) => {
+    const response = await localApi.post(`/api/held-rooms`, { roomName });
+    return response.data;
+  },
+
+  unholdRoom: async (roomName: string) => {
+    const response = await localApi.delete(`/api/held-rooms/${encodeURIComponent(roomName)}`);
+    return response.data;
+  },
 };

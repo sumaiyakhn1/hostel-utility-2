@@ -57,6 +57,13 @@ export default function WardenDashboard() {
   const [isModalEditing, setIsModalEditing] = useState(false);
   const [availableRooms, setAvailableRooms] = useState<any[]>([]);
 
+  // Hold Room state
+  const [heldRooms, setHeldRooms] = useState<{ roomName: string; heldAt: string }[]>([]);
+  const [holdLoading, setHoldLoading] = useState(false);
+  const [showHoldModal, setShowHoldModal] = useState(false);
+  const [holdForm, setHoldForm] = useState({ wing: "", roomType: "", roomName: "" });
+  const [holdAvailableRooms, setHoldAvailableRooms] = useState<any[]>([]);
+
   const ENTITY_ID = "5ea04b2f774faa5d67505ab2";
 
   const fetchAllStudents = async () => {
@@ -71,12 +78,69 @@ export default function WardenDashboard() {
     }
   };
 
+  const fetchHeldRooms = async () => {
+    try {
+      const data = await hostelService.getHeldRooms();
+      setHeldRooms(data);
+    } catch (err) {
+      console.error("Error fetching held rooms:", err);
+    }
+  };
+
+  const handleHoldRoom = async () => {
+    if (!holdForm.roomName) return;
+    setHoldLoading(true);
+    try {
+      await hostelService.holdRoom(holdForm.roomName);
+      setHoldForm((prev) => ({ ...prev, roomName: "" }));
+      await fetchHeldRooms();
+    } catch (err: any) {
+      alert(err.response?.data?.message || "Failed to hold room.");
+    } finally {
+      setHoldLoading(false);
+    }
+  };
+
+  const fetchHoldRooms = async (wing: string, roomType: string) => {
+    if (!wing || !roomType) { setHoldAvailableRooms([]); return; }
+    try {
+      const data = await hostelService.getHostelRooms({
+        entity: ENTITY_ID,
+        session: "2025-26 Even",
+        hostel: wing,
+        roomType,
+      });
+      const rooms = Array.isArray(data) ? data : data.data || [];
+      setHoldAvailableRooms(rooms);
+    } catch (err) {
+      console.error("Error fetching hold rooms:", err);
+    }
+  };
+
+  const openHoldModal = () => {
+    setShowHoldModal(true);
+    if (!masterData) fetchMasterData();
+  };
+
+  const handleUnholdRoom = async (roomName: string) => {
+    setHoldLoading(true);
+    try {
+      await hostelService.unholdRoom(roomName);
+      await fetchHeldRooms();
+    } catch (err: any) {
+      alert(err.response?.data?.message || "Failed to unhold room.");
+    } finally {
+      setHoldLoading(false);
+    }
+  };
+
   useEffect(() => {
     const token = localStorage.getItem("auth_token");
     if (!token) {
       navigate("/warden/login");
     } else {
       fetchAllStudents();
+      fetchHeldRooms();
     }
   }, [navigate]);
 
@@ -473,6 +537,19 @@ export default function WardenDashboard() {
         </div>
         <div className="flex items-center gap-4">
           <button
+            onClick={openHoldModal}
+            className="px-4 py-3 bg-amber-500 text-white border border-amber-400 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-amber-600 transition-all shadow-lg shadow-amber-100 flex items-center gap-2"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <rect x="3" y="11" width="18" height="11" rx="2" ry="2" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+              <path d="M7 11V7a5 5 0 0110 0v4" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+            Hold Rooms
+            {heldRooms.length > 0 && (
+              <span className="bg-white/25 text-white text-[9px] font-black px-1.5 py-0.5 rounded-full">{heldRooms.length}</span>
+            )}
+          </button>
+          <button
             onClick={handleLogout}
             className="px-4 py-3 bg-white text-slate-400 border border-slate-200 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:text-red-600 hover:border-red-100 transition-all shadow-sm"
           >
@@ -523,6 +600,173 @@ export default function WardenDashboard() {
           </div>
         </div>
       </div>
+
+      {/* ── Room Hold Modal ── */}
+      {showHoldModal && (
+        <div className="fixed inset-0 z-[600] flex items-center justify-center p-4">
+          <div
+            className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm animate-fadeIn"
+            onClick={() => setShowHoldModal(false)}
+          />
+          <div className="bg-white rounded-[2.5rem] w-full max-w-lg relative z-10 shadow-[0_50px_100px_rgba(0,0,0,0.25)] border border-slate-100 overflow-hidden animate-slideUp max-h-[90vh] flex flex-col">
+            {/* Header */}
+            <div className="bg-amber-500 px-8 py-8 text-white relative overflow-hidden flex-shrink-0">
+              <div className="absolute top-0 right-0 -mr-10 -mt-10 w-40 h-40 bg-white/10 rounded-full blur-3xl" />
+              <div className="relative z-10 flex items-center justify-between">
+                <div>
+                  <div className="w-12 h-12 bg-white/20 rounded-2xl flex items-center justify-center mb-4 backdrop-blur-md">
+                    <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <rect x="3" y="11" width="18" height="11" rx="2" ry="2" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                      <path d="M7 11V7a5 5 0 0110 0v4" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                  </div>
+                  <h3 className="text-2xl font-black tracking-tight leading-tight">Room Hold Management</h3>
+                  <p className="text-amber-100 text-xs font-bold uppercase tracking-widest mt-2 opacity-80">Hold or release rooms for allocation</p>
+                </div>
+                <button
+                  onClick={() => setShowHoldModal(false)}
+                  className="text-white/60 hover:text-white transition-colors p-2 self-start"
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            {/* Scrollable content */}
+            <div className="p-8 overflow-y-auto flex-1">
+              {/* Hold a Room section */}
+              <div className="mb-8">
+                <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-4 flex items-center gap-2">
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+                  Hold a Room
+                </h4>
+                <div className="grid grid-cols-2 gap-3 mb-4">
+                  {/* Wing */}
+                  <div className="bg-slate-50 rounded-xl p-3 border border-slate-100">
+                    <label className="text-[8px] font-black uppercase tracking-widest text-slate-400 block mb-1">Hostel Wing</label>
+                    <select
+                      className="w-full text-sm font-bold bg-transparent outline-none cursor-pointer"
+                      value={holdForm.wing}
+                      onChange={(e) => {
+                        const wing = e.target.value;
+                        setHoldForm({ wing, roomType: "", roomName: "" });
+                        setHoldAvailableRooms([]);
+                      }}
+                    >
+                      <option value="">Select Wing</option>
+                      {masterData?.hostel.map((h) => <option key={h} value={h}>{h}</option>)}
+                    </select>
+                  </div>
+                  {/* Room Type */}
+                  <div className="bg-slate-50 rounded-xl p-3 border border-slate-100">
+                    <label className="text-[8px] font-black uppercase tracking-widest text-slate-400 block mb-1">Room Type</label>
+                    <select
+                      className="w-full text-sm font-bold bg-transparent outline-none cursor-pointer"
+                      value={holdForm.roomType}
+                      onChange={(e) => {
+                        const roomType = e.target.value;
+                        setHoldForm((prev) => ({ ...prev, roomType, roomName: "" }));
+                        fetchHoldRooms(holdForm.wing, roomType);
+                      }}
+                      disabled={!holdForm.wing}
+                    >
+                      <option value="">Select Type</option>
+                      {masterData?.roomType.map((rt) => <option key={rt} value={rt}>{rt}</option>)}
+                    </select>
+                  </div>
+                </div>
+
+                {/* Room Identifier */}
+                <div className="bg-slate-50 rounded-xl p-3 border border-slate-100 mb-4">
+                  <label className="text-[8px] font-black uppercase tracking-widest text-slate-400 block mb-1">Room Identifier</label>
+                  <select
+                    className="w-full text-sm font-bold bg-transparent outline-none cursor-pointer"
+                    value={holdForm.roomName}
+                    onChange={(e) => setHoldForm((prev) => ({ ...prev, roomName: e.target.value }))}
+                    disabled={!holdForm.wing || !holdForm.roomType || holdAvailableRooms.length === 0}
+                  >
+                    <option value="">
+                      {holdForm.wing && holdForm.roomType && holdAvailableRooms.length === 0
+                        ? "No rooms found"
+                        : "Select Room"}
+                    </option>
+                    {Array.from(new Set(holdAvailableRooms.map((r: any) => r.roomName))).map((rn: any) => {
+                      const isAlreadyHeld = heldRooms.some((hr) => hr.roomName === rn);
+                      return (
+                        <option key={rn} value={rn} disabled={isAlreadyHeld}>
+                          {rn}{isAlreadyHeld ? " (Already Held)" : ""}
+                        </option>
+                      );
+                    })}
+                  </select>
+                </div>
+
+                <button
+                  onClick={handleHoldRoom}
+                  disabled={holdLoading || !holdForm.roomName}
+                  className="w-full py-3.5 bg-amber-500 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-amber-600 active:scale-[0.98] transition-all shadow-lg shadow-amber-100 disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                >
+                  {holdLoading ? (
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  ) : (
+                    <>
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <rect x="3" y="11" width="18" height="11" rx="2" ry="2" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                        <path d="M7 11V7a5 5 0 0110 0v4" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                      </svg>
+                      Hold This Room
+                    </>
+                  )}
+                </button>
+              </div>
+
+              {/* Held Rooms List */}
+              <div>
+                <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-4 flex items-center justify-between">
+                  <span className="flex items-center gap-2">
+                    <span className="w-1.5 h-1.5 rounded-full bg-red-500" />
+                    Currently Held
+                  </span>
+                  <span className="bg-amber-100 text-amber-700 px-2.5 py-1 rounded-full">{heldRooms.length}</span>
+                </h4>
+                {heldRooms.length === 0 ? (
+                  <div className="text-center py-8 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
+                    <div className="text-3xl mb-2">🔓</div>
+                    <p className="text-slate-300 text-xs font-black uppercase tracking-widest">No rooms on hold</p>
+                    <p className="text-slate-300 text-[9px] font-bold mt-1">All rooms are available for allocation</p>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {heldRooms.map((room) => (
+                      <div
+                        key={room.roomName}
+                        className="flex items-center justify-between px-5 py-3.5 bg-amber-50 border border-amber-200 rounded-2xl transition-all hover:bg-amber-100 group"
+                      >
+                        <div className="flex items-center gap-3">
+                          <svg className="w-4 h-4 text-amber-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <rect x="3" y="11" width="18" height="11" rx="2" ry="2" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                            <path d="M7 11V7a5 5 0 0110 0v4" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                          </svg>
+                          <span className="text-sm font-black text-slate-800">{room.roomName}</span>
+                        </div>
+                        <button
+                          onClick={() => handleUnholdRoom(room.roomName)}
+                          disabled={holdLoading}
+                          className="px-3 py-1.5 bg-white border border-slate-200 text-slate-400 rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-red-50 hover:text-red-500 hover:border-red-200 transition-all"
+                        >
+                          Unhold
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Applications + Detail panel */}
       <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">

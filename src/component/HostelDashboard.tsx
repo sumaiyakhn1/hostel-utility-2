@@ -205,6 +205,7 @@ export default function HostelDashboard() {
   const [erpHostelAssigned, setErpHostelAssigned] = useState(false);
   const [erpHostelData, setErpHostelData] = useState<any>(null);
   const [allStudents, setAllStudents] = useState<any[]>([]);
+  const [heldRoomNames, setHeldRoomNames] = useState<string[]>([]);
 
   const addNotification = (
     message: string,
@@ -223,7 +224,7 @@ export default function HostelDashboard() {
     setError("");
     try {
       // Parallelize to avoid head-of-line blocking
-      const [data, all] = await Promise.all([
+      const [data, all, heldRooms] = await Promise.all([
         hostelService.getHostelMaster("5ea04b2f774faa5d67505ab2").catch((err) => {
           console.error("Master data fetch failed:", err);
           return null;
@@ -232,10 +233,15 @@ export default function HostelDashboard() {
           console.error("Saved students fetch failed:", err);
           return [];
         }),
+        hostelService.getHeldRooms().catch((err) => {
+          console.error("Held rooms fetch failed:", err);
+          return [];
+        }),
       ]);
 
       if (data) setMasterData(data);
       if (all) setAllStudents(all);
+      if (heldRooms) setHeldRoomNames(heldRooms.map((r: any) => r.roomName));
     } catch (err) {
       console.error("Main fetch error:", err);
       setError("Failed to load hostel data.");
@@ -262,7 +268,7 @@ export default function HostelDashboard() {
 
   const getFilteredRooms = () => {
     const roomNames = Array.from(new Set(availableRooms.map((r: any) => r.roomName)));
-    return roomNames.filter((rn) => getFilteredBeds(rn).length > 0);
+    return roomNames.filter((rn) => !heldRoomNames.includes(rn) && getFilteredBeds(rn).length > 0);
   };
 
   const fetchStudent = async () => {
@@ -1086,7 +1092,7 @@ export default function HostelDashboard() {
                             name={field.name}
                             value={val}
                             onChange={handleChange}
-                            disabled={isLocked || field.name === "session"}
+                            disabled={isLocked || field.name === "session" || (field.name === "roomNo" && getFilteredRooms().length === 0)}
                             className="w-full appearance-none rounded-xl pr-10 outline-none transition-all duration-200 text-sm font-bold text-slate-800"
                             style={{
                               padding: "0.875rem 2.5rem 0.875rem 1rem",
@@ -1101,7 +1107,11 @@ export default function HostelDashboard() {
                               cursor: isLocked || field.name === "session" ? "not-allowed" : "pointer",
                             }}
                           >
-                            <option value="">Select {field.label}</option>
+                            <option value="">
+                              {field.name === "roomNo" && form.hostel && form.roomType && getFilteredRooms().length === 0
+                                ? "No rooms available."
+                                : `Select ${field.label}`}
+                            </option>
                             {field.options.map((opt: string) => (
                               <option key={opt} value={opt}>
                                 {opt}
