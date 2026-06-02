@@ -70,7 +70,6 @@ export default function WardenDashboard() {
   const [reportAvailableRooms, setReportAvailableRooms] = useState<any[]>([]);
   const [reportData, setReportData] = useState<any[]>([]);
   const [reportLoading, setReportLoading] = useState(false);
-  const [reportError, setReportError] = useState("");
 
   const ENTITY_ID = "5ea04b2f774faa5d67505ab2";
 
@@ -144,7 +143,6 @@ export default function WardenDashboard() {
   const handleFetchReport = async () => {
     if (!reportForm.wing || !reportForm.roomType || !reportForm.roomName) return;
     setReportLoading(true);
-    setReportError("");
     setReportData([]);
     try {
       const payload = {
@@ -167,7 +165,7 @@ export default function WardenDashboard() {
       if (msg.toLowerCase().includes("no student found")) {
         setReportData([]);
       } else {
-        setReportError(msg);
+        console.error(msg);
       }
     } finally {
       setReportLoading(false);
