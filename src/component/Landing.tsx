@@ -77,7 +77,7 @@ const Landing = () => {
           <input
             type="text"
             value={inputRegNo}
-            onChange={(e) => setInputRegNo(e.target.value)}
+            readOnly
             placeholder="e.g. 120198000000"
             className="w-full px-5 py-4 bg-gray-50 border border-gray-100 rounded-[1.25rem] focus:outline-none focus:ring-4 focus:ring-red-700/5 focus:border-red-700/30 transition-all font-bold text-gray-800 placeholder:text-gray-300"
           />
