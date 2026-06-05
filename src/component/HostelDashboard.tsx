@@ -7,6 +7,7 @@ interface HostelMasterData {
   hostel: string[];
   roomType: string[];
   gatePassCategory: { category: string; _id: string }[];
+  paymentFrequency: string[];
 }
 
 interface Notification {
@@ -167,6 +168,7 @@ const FIELD_META: Record<string, { icon: React.FC; color: string }> = {
   roomType: { icon: Icon.Grid, color: "#8b5cf6" },
   roomNo: { icon: Icon.Hash, color: "#10b981" },
   bedNo: { icon: Icon.Bed, color: "#f59e0b" },
+  paymentFrequency: { icon: Icon.Grid, color: "#ec4899" },
 };
 
 const ACCENT = "rgb(237,128,65)";
@@ -193,6 +195,7 @@ export default function HostelDashboard() {
     remark: "",
     session: "2025-26 Even",
     regNo: effectiveRegNo,
+    paymentFrequency: "",
   });
   const [student, setStudent] = useState<any>(null);
   const [localStatus, setLocalStatus] = useState<string>("");
@@ -416,7 +419,7 @@ export default function HostelDashboard() {
   };
 
   const validateAndShowConfirm = () => {
-    if (!form.hostel || !form.roomType || !form.roomNo || !form.bedNo) {
+    if (!form.hostel || !form.roomType || !form.roomNo || !form.bedNo || !form.paymentFrequency) {
       addNotification("Please fill all fields.", "error");
       return;
     }
@@ -519,6 +522,11 @@ export default function HostelDashboard() {
       label: "Bed Allocation",
       name: "bedNo",
       options: getFilteredBeds(form.roomNo).map((b: any) => b.bedName),
+    },
+    {
+      label: "Payment Frequency",
+      name: "paymentFrequency",
+      options: masterData?.paymentFrequency || [],
     },
   ];
 
@@ -776,10 +784,18 @@ export default function HostelDashboard() {
               <div className="mb-8 p-6 bg-white/80 backdrop-blur-xl rounded-[2rem] border border-white shadow-xl shadow-slate-200/50">
                 <div className="flex flex-col sm:flex-row items-center sm:items-start gap-6">
                   <div 
-                    className="w-20 h-20 rounded-[2rem] flex items-center justify-center text-3xl font-black text-white shadow-lg shadow-orange-200"
+                    className="w-20 h-20 rounded-[2rem] flex items-center justify-center text-3xl font-black text-white shadow-lg shadow-orange-200 overflow-hidden"
                     style={{ background: ACCENT }}
                   >
-                    {student.name?.[0] || "?"}
+                    {student?.photo ? (
+                      <img
+                        src={student.photo}
+                        className="w-full h-full object-cover"
+                        alt="student"
+                      />
+                    ) : (
+                      student.name?.[0] || "?"
+                    )}
                   </div>
                   <div className="flex-1 text-center sm:text-left">
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2">
@@ -963,110 +979,6 @@ export default function HostelDashboard() {
                       }}
                     />
                   </div>
-                </div>
-
-                {/* Student card */}
-                <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5 mb-8 flex flex-col md:flex-row items-start md:items-center gap-4 relative overflow-hidden">
-                  <div
-                    className="absolute left-0 top-0 bottom-0 w-[4px] rounded-l-2xl"
-                    style={{ background: ACCENT }}
-                  />
-                  <div className="flex items-center gap-4 w-full md:w-auto ml-1">
-                    <div className="w-16 h-16 rounded-2xl overflow-hidden bg-slate-100 flex items-center justify-center text-3xl shadow-inner flex-shrink-0">
-                      {student?.photo ? (
-                        <img
-                          src={student.photo}
-                          className="w-full h-full object-cover"
-                          alt="student"
-                        />
-                      ) : (
-                        "🙎‍♂️"
-                      )}
-                    </div>
-                    <div className="flex-1 min-w-0 md:hidden">
-                      <p className="font-black text-slate-900 text-base truncate">
-                        {student?.name || "Student Profile"}
-                      </p>
-                      <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">
-                        {student?.regNo || effectiveRegNo}
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="flex-1 min-w-0 grid grid-cols-1 md:grid-cols-2 gap-4 w-full">
-                    <div className="hidden md:block">
-                      <p className="font-black text-slate-900 text-base truncate">
-                        {student?.name || "Student Profile"}
-                      </p>
-                      <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">
-                        {student?.regNo || effectiveRegNo}
-                      </p>
-                      {(student?.course || student?.stream) && (
-                        <p className="text-[11px] text-slate-500 font-semibold mt-1 truncate">
-                          {student.course} • {student.stream}
-                        </p>
-                      )}
-                      {(student?.batch || student?.section) && (
-                        <p className="text-[10px] text-slate-400 font-bold mt-0.5">
-                          Batch: {student.batch} | Sec: {student.section}
-                        </p>
-                      )}
-                    </div>
-                    <div className="md:hidden">
-                      {(student?.course || student?.stream) && (
-                        <p className="text-[11px] text-slate-500 font-semibold mt-1 truncate">
-                          {student.course} • {student.stream}
-                        </p>
-                      )}
-                      {(student?.batch || student?.section) && (
-                        <p className="text-[10px] text-slate-400 font-bold mt-0.5">
-                          Batch: {student.batch} | Sec: {student.section}
-                        </p>
-                      )}
-                    </div>
-
-                    <div className="flex flex-col justify-center md:items-end gap-1.5 md:mt-0 pt-3 md:pt-0 border-t border-slate-100 md:border-none">
-                      {student?.phone && (
-                        <p className="text-[11px] text-slate-600 font-semibold flex items-center gap-2">
-                          <span className="text-sm">📞</span> {student.phone}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                  {localStatus && (
-                    <div className="flex-shrink-0 flex flex-col items-end gap-1">
-                      <span
-                        className="px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest"
-                        style={{
-                          background:
-                            localStatus === "rejected"
-                              ? "#fee2e2"
-                              : localStatus === "approved" ||
-                                localStatus === "assigned"
-                                ? "#ecfdf5"
-                                : ACCENT_LIGHT,
-                          color:
-                            localStatus === "rejected"
-                              ? "#dc2626"
-                              : localStatus === "approved" ||
-                                localStatus === "assigned"
-                                ? "#059669"
-                                : ACCENT,
-                        }}
-                      >
-                        {localStatus === "assigned"
-                          ? "approved"
-                          : localStatus === "pending"
-                            ? "under review"
-                            : localStatus}
-                      </span>
-                      {localStatus === "rejected" && rejectRemark && (
-                        <span className="text-[10px] text-red-500 font-bold text-right max-w-[160px] leading-tight">
-                          {rejectRemark}
-                        </span>
-                      )}
-                    </div>
-                  )}
                 </div>
 
                 {/* Form fields */}
