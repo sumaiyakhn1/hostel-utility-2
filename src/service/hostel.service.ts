@@ -139,5 +139,11 @@ export const hostelService = {
   getStudentReports: async (payload: any) => {
     const response = await api.post(`/api/hostelReport/studentReports`, payload);
     return response.data;
+  },
+
+  removeFromStudentHostelRoom: async (studentId: string, remark: string, installments: string[]) => {
+    const payload = { studentId, remark, installments };
+    const response = await api.post(`https://fee2-api.odpay.in/api/removeFromStudent/hostelRoom?studentId`, payload);
+    return response.data;
   }
 };

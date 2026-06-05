@@ -71,7 +71,15 @@ export default function WardenDashboard() {
   const [reportData, setReportData] = useState<any[]>([]);
   const [reportLoading, setReportLoading] = useState(false);
 
+  // Remove Hostel state
+  const [showRemoveModal, setShowRemoveModal] = useState(false);
+  const [removeStudent, setRemoveStudent] = useState<StudentRecord | null>(null);
+  const [removeRemark, setRemoveRemark] = useState("-");
+  const [removeInstallments, setRemoveInstallments] = useState<string[]>(["Even"]);
+  const [removeLoading, setRemoveLoading] = useState(false);
+
   const ENTITY_ID = "5ea04b2f774faa5d67505ab2";
+
 
   const fetchAllStudents = async () => {
     setLoading(true);
@@ -443,6 +451,50 @@ export default function WardenDashboard() {
     }
   };
 
+  const handleRemoveHostel = async () => {
+    if (!removeStudent) return;
+    setRemoveLoading(true);
+    try {
+      const erpData = await hostelService.getStudentDetails({
+        id: "689441d9d2b728001069ebe7",
+        entity: ENTITY_ID,
+        session: removeStudent.session,
+        regNo: removeStudent.regNumber,
+      });
+      if (!erpData || !erpData._id) {
+        alert("Student not found in ERP system.");
+        setRemoveLoading(false);
+        return;
+      }
+
+      await hostelService.removeFromStudentHostelRoom(
+        erpData._id,
+        removeRemark,
+        removeInstallments
+      );
+
+      await hostelService.updateStudentInDB(removeStudent.regNumber, {
+        status: "pending",
+        roomNo: "",
+        bedNo: "",
+        startDate: "",
+        endDate: "",
+        paymentFreq: ""
+      });
+
+      alert("Hostel removed from student successfully.");
+      setShowRemoveModal(false);
+      setRemoveStudent(null);
+      await fetchAllStudents();
+    } catch (err: any) {
+      console.error("Remove Error:", err);
+      alert("Failed to remove hostel from student.");
+    } finally {
+      setRemoveLoading(false);
+    }
+  };
+
+
   const filteredStudents = students.filter((s) => {
     const matchesSearch =
       s.regNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -485,6 +537,63 @@ export default function WardenDashboard() {
 
   return (
     <div className="min-h-screen bg-[#f1f5f9] p-4 md:p-8 font-sans transition-all">
+      {/* Remove Hostel Modal */}
+      {showRemoveModal && removeStudent && (
+        <div className="fixed inset-0 z-[600] flex items-center justify-center p-4">
+          <div
+            className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm animate-fadeIn"
+            onClick={() => setShowRemoveModal(false)}
+          />
+          <div className="bg-white rounded-3xl w-full max-w-sm relative z-10 shadow-2xl overflow-hidden animate-slideUp">
+            <div className="p-6 border-b border-slate-100">
+              <h3 className="text-xl font-black text-slate-800">Delete Remark</h3>
+            </div>
+            <div className="p-6 space-y-4">
+              <div className="flex gap-4">
+                <div className="flex-1 border-b border-slate-200 focus-within:border-red-500 pb-1">
+                  <label className="text-[10px] font-bold text-slate-500 mb-1 block">Remark</label>
+                  <input
+                    type="text"
+                    value={removeRemark}
+                    onChange={(e) => setRemoveRemark(e.target.value)}
+                    className="w-full text-sm font-bold bg-transparent outline-none"
+                    placeholder="Enter remark"
+                  />
+                </div>
+                <div className="flex-1 border-b border-slate-200 focus-within:border-red-500 pb-1">
+                  <label className="text-[10px] font-bold text-slate-500 mb-1 block">Select Installments To Re...</label>
+                  <select
+                    value={removeInstallments[0]}
+                    onChange={(e) => setRemoveInstallments([e.target.value])}
+                    className="w-full text-sm font-bold bg-transparent outline-none cursor-pointer"
+                  >
+                    <option value="Even">Even</option>
+                    <option value="Odd">Odd</option>
+                    <option value="Both">Both</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-3 mt-6">
+                <button
+                  onClick={() => setShowRemoveModal(false)}
+                  className="px-4 py-2 text-slate-500 font-black text-xs hover:bg-slate-50 rounded-lg transition-all"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleRemoveHostel}
+                  disabled={removeLoading}
+                  className="px-4 py-2 bg-red-600 text-white font-black text-xs rounded-lg hover:bg-red-700 active:scale-95 transition-all shadow-md flex items-center gap-2 disabled:opacity-50"
+                >
+                  {removeLoading ? "Removing..." : "Remove"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ERP Push Confirmation Modal */}
       {showErpConfirm && erpPushData && (
         <div className="fixed inset-0 z-[600] flex items-center justify-center p-4">
@@ -1707,6 +1816,19 @@ export default function WardenDashboard() {
                                 className="bg-indigo-600 text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-xl shadow-indigo-100 hover:bg-indigo-700 active:scale-95 transition-all"
                               >
                                 Finalize ERP
+                              </button>
+                            )}
+                            {student.status === "assigned" && (
+                              <button
+                                onClick={() => {
+                                  setRemoveStudent(student);
+                                  setShowRemoveModal(true);
+                                  setRemoveRemark("-");
+                                  setRemoveInstallments(["Even"]);
+                                }}
+                                className="bg-red-500 text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-xl shadow-red-100 hover:bg-red-600 active:scale-95 transition-all"
+                              >
+                                Remove
                               </button>
                             )}
                           </div>

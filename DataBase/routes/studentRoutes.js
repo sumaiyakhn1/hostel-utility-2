@@ -56,19 +56,20 @@ router.patch("/:regNumber", async (req, res) => {
             return res.status(404).json({ message: "Student not found." });
         }
 
-        // 🔒 Once approved/assigned, status cannot be rolled back
+        // 🔒 Once approved/assigned, status cannot be rolled back without explicit intent
         const lockedStatuses = ["approved", "assigned"];
         if (lockedStatuses.includes(existing.status)) {
             const incomingStatus = req.body.status;
-            // Only allow: approved → assigned (ERP push), or no status change at all
+            // Only allow: approved → assigned (ERP push), resetting to pending, or no status change at all
             const isAllowed =
                 !incomingStatus ||
                 (existing.status === "approved" && incomingStatus === "assigned") ||
+                incomingStatus === "pending" ||
                 incomingStatus === existing.status;
 
             if (!isAllowed) {
                 return res.status(403).json({
-                    message: `Cannot change status from '${existing.status}'. Approval is final.`,
+                    message: `Cannot change status from '${existing.status}' to '${incomingStatus}'. Approval is final.`,
                 });
             }
         }
