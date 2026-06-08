@@ -12,6 +12,8 @@ const studentSchema = new mongoose.Schema({
     default: Date.now,
   },
   session: String,
+  entityId: String,
+  collegeName: String,
   wing: String,
   roomNo: String,
   bedNo: String,

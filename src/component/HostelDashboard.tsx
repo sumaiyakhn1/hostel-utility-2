@@ -187,13 +187,18 @@ export default function HostelDashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [masterData, setMasterData] = useState<HostelMasterData | null>(null);
+
+  const savedEntityId = localStorage.getItem("student_entity_id") || "5ea04b2f774faa5d67505ab2";
+  const savedSession = localStorage.getItem("student_session") || "2025-26 Even";
+  const savedCollegeName = localStorage.getItem("student_college_name") || "";
+
   const [form, setForm] = useState({
     hostel: "",
     roomType: "",
     roomNo: "",
     bedNo: "",
     remark: "",
-    session: "2025-26 Even",
+    session: savedSession,
     regNo: effectiveRegNo,
     paymentFrequency: "",
   });
@@ -228,7 +233,7 @@ export default function HostelDashboard() {
     try {
       // Parallelize to avoid head-of-line blocking
       const [data, all, heldRooms] = await Promise.all([
-        hostelService.getHostelMaster("5ea04b2f774faa5d67505ab2").catch((err) => {
+        hostelService.getHostelMaster(savedEntityId).catch((err) => {
           console.error("Master data fetch failed:", err);
           return null;
         }),
@@ -279,7 +284,7 @@ export default function HostelDashboard() {
     try {
       const data = await hostelService.getStudentDetails({
         id: "689441d9d2b728001069ebe7",
-        entity: "5ea04b2f774faa5d67505ab2",
+        entity: savedEntityId,
         session: form.session,
         regNo: form.regNo,
       });
@@ -327,7 +332,7 @@ export default function HostelDashboard() {
     if (!form.hostel || !form.roomType) return;
     try {
       const data = await hostelService.getHostelRooms({
-        entity: "5ea04b2f774faa5d67505ab2",
+        entity: savedEntityId,
         session: form.session,
         hostel: form.hostel,
         roomType: form.roomType,
@@ -386,6 +391,8 @@ export default function HostelDashboard() {
       const payload = {
         name: student?.name || "",
         session: form.session,
+        entityId: savedEntityId,
+        collegeName: localStorage.getItem("student_college_name") || "",
         wing: form.hostel,
         roomNo: form.roomNo,
         bedNo: form.bedNo,
@@ -769,6 +776,14 @@ export default function HostelDashboard() {
           <div className="flex-1 px-4 sm:px-8 lg:px-12 xl:px-16 py-8 lg:py-12 max-w-3xl w-full mx-auto">
             {/* Page title */}
             <div className="mb-8">
+              {savedCollegeName && (
+                <div className="mb-4 inline-flex items-center gap-3 px-5 py-2.5 bg-white rounded-2xl shadow-sm border border-slate-200/60">
+                  <span className="w-2.5 h-2.5 rounded-full bg-orange-500 flex-shrink-0 animate-pulse"></span>
+                  <p className="text-sm sm:text-base font-black text-slate-800 uppercase tracking-tight">
+                    {savedCollegeName}
+                  </p>
+                </div>
+              )}
               <h2 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">
                 Room Allocation
               </h2>

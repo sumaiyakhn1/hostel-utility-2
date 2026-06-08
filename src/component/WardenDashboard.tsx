@@ -8,6 +8,8 @@ interface StudentRecord {
   name: string;
   applyDate: string;
   session: string;
+  entityId: string;
+  collegeName: string;
   wing: string;
   roomNo: string;
   bedNo: string;
@@ -228,14 +230,15 @@ export default function WardenDashboard() {
   };
 
   const fetchRoomsForEdit = async (
+    entityId: string,
     wing: string,
     type: string,
     session: string,
   ) => {
-    if (!wing || !type || !session) return;
+    if (!wing || !type || !session || !entityId) return;
     try {
       const data = await hostelService.getHostelRooms({
-        entity: ENTITY_ID,
+        entity: entityId,
         session,
         hostel: wing,
         roomType: type,
@@ -247,16 +250,23 @@ export default function WardenDashboard() {
     }
   };
 
+  const getCollegeName = (student: StudentRecord) => {
+    if (student.collegeName) return student.collegeName;
+    // Fallbacks for older records that didn't have collegeName saved
+    if (student.entityId === "5e74b933c14d052673463fd3") return "JMIT";
+    return "JMIETI"; // Default fallback since it was the original hardcoded entity
+  };
+
   const handleEditClick = (student: StudentRecord) => {
     setEditingId(student._id);
     setEditForm({ ...student });
     fetchMasterData();
-    fetchRoomsForEdit(student.wing, student.roomType, student.session);
+    fetchRoomsForEdit(student.entityId || ENTITY_ID, student.wing, student.roomType, student.session);
   };
 
   useEffect(() => {
     if (editingId && editForm) {
-      fetchRoomsForEdit(editForm.wing, editForm.roomType, editForm.session);
+      fetchRoomsForEdit(editForm.entityId || ENTITY_ID, editForm.wing, editForm.roomType, editForm.session);
     }
   }, [editForm?.wing, editForm?.roomType]);
 
@@ -293,7 +303,7 @@ export default function WardenDashboard() {
     try {
       const erpStudent = await hostelService.getStudentDetails({
         id: "689441d9d2b728001069ebe7",
-        entity: ENTITY_ID,
+        entity: student.entityId || ENTITY_ID,
         session: student.session,
         regNo: student.regNumber,
       });
@@ -302,7 +312,7 @@ export default function WardenDashboard() {
         return;
       }
       const wings = await hostelService.getHostelRooms({
-        entity: ENTITY_ID,
+        entity: student.entityId || ENTITY_ID,
         session: student.session,
         hostel: student.wing,
         roomType: student.roomType,
@@ -366,7 +376,7 @@ export default function WardenDashboard() {
     try {
       const erpData = await hostelService.getStudentDetails({
         id: "689441d9d2b728001069ebe7",
-        entity: ENTITY_ID,
+        entity: student.entityId || ENTITY_ID,
         session: student.session,
         regNo: student.regNumber,
       });
@@ -409,7 +419,7 @@ export default function WardenDashboard() {
       setEditForm({ ...selectedStudent });
       fetchMasterData();
       if (selectedStudent) {
-        fetchRoomsForEdit(selectedStudent.wing, selectedStudent.roomType, selectedStudent.session);
+        fetchRoomsForEdit(selectedStudent.entityId || ENTITY_ID, selectedStudent.wing, selectedStudent.roomType, selectedStudent.session);
       }
     }
     setIsModalEditing(!isModalEditing);
@@ -457,7 +467,7 @@ export default function WardenDashboard() {
     try {
       const erpData = await hostelService.getStudentDetails({
         id: "689441d9d2b728001069ebe7",
-        entity: ENTITY_ID,
+        entity: removeStudent.entityId || ENTITY_ID,
         session: removeStudent.session,
         regNo: removeStudent.regNumber,
       });
@@ -1041,6 +1051,9 @@ export default function WardenDashboard() {
                         <p className="text-sm font-black text-slate-900 truncate">
                           {student.name || student.regNumber}
                         </p>
+                        <p className="text-[9px] text-orange-500 font-bold uppercase tracking-wider truncate mb-0.5">
+                          {getCollegeName(student)}
+                        </p>
                         <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wide">
                           {student.regNumber}
                         </p>
@@ -1070,9 +1083,12 @@ export default function WardenDashboard() {
                 <div className="bg-white/70 backdrop-blur-3xl rounded-[2rem] border border-white shadow-2xl overflow-hidden">
                   <div className="px-8 py-5 border-b border-slate-100 flex items-start justify-between">
                     <div className="flex-1 pr-4">
-                      <h2 className="text-xl font-black text-slate-900 mb-1">
+                      <h2 className="text-xl font-black text-slate-900 mb-0.5">
                         {selectedStudent.name || "Student Detail"}
                       </h2>
+                      <p className="text-[10px] font-bold text-orange-500 uppercase tracking-widest mb-2.5">
+                        {getCollegeName(selectedStudent)}
+                      </p>
                       <div className="flex flex-wrap items-center gap-2 text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2.5">
                         <span className="bg-slate-100 text-slate-600 px-2 py-0.5 rounded-md">
                           {selectedStudent.regNumber}
@@ -1619,8 +1635,8 @@ export default function WardenDashboard() {
                               {student.name}
                             </div>
                           )}
-                          <div className="text-[9px] text-slate-400 font-black mt-2 uppercase bg-slate-50 px-2 py-0.5 rounded-md inline-block">
-                            {student.session}
+                          <div className="text-[9px] text-orange-500 font-black mt-2 uppercase bg-orange-50 border border-orange-100 px-2 py-0.5 rounded-md inline-block truncate max-w-[200px]" title={getCollegeName(student)}>
+                            {getCollegeName(student)}
                           </div>
                         </td>
                         <td className="px-8 py-6">
