@@ -397,7 +397,7 @@ export default function HostelDashboard() {
         roomNo: form.roomNo,
         bedNo: form.bedNo,
         roomType: form.roomType,
-        paymentFreq: (form as any).paymentFrequency,
+        paymentFreq: "",
         startDate: (form as any).startDate,
         endDate: (form as any).endDate,
         remark: form.remark || "",
@@ -426,7 +426,7 @@ export default function HostelDashboard() {
   };
 
   const validateAndShowConfirm = () => {
-    if (!form.hostel || !form.roomType || !form.roomNo || !form.bedNo || !form.paymentFrequency) {
+    if (!form.hostel || !form.roomType || !form.roomNo || !form.bedNo) {
       addNotification("Please fill all fields.", "error");
       return;
     }
@@ -529,11 +529,6 @@ export default function HostelDashboard() {
       label: "Bed Allocation",
       name: "bedNo",
       options: getFilteredBeds(form.roomNo).map((b: any) => b.bedName),
-    },
-    {
-      label: "Payment Frequency",
-      name: "paymentFrequency",
-      options: masterData?.paymentFrequency || [],
     },
   ];
 
