@@ -262,16 +262,7 @@ export default function HostelDashboard() {
     const room = availableRooms.find((r: any) => r.roomName === roomName);
     if (!room || !room.beds) return [];
 
-    const takenBeds = allStudents
-      .filter(
-        (s) =>
-          s.roomNo === roomName &&
-          s.regNumber !== form.regNo &&
-          (s.status === "pending" || s.status === "approved" || s.status === "assigned"),
-      )
-      .map((s) => s.bedNo);
-
-    return room.beds.filter((b: any) => !takenBeds.includes(b.bedName) && b.bedStatus !== "Assigned" && !heldBeds.some((hb) => hb.roomName === roomName && hb.bedName === b.bedName));
+    return room.beds.filter((b: any) => b.bedStatus !== "Assigned" && !heldBeds.some((hb) => hb.roomName === roomName && hb.bedName === b.bedName));
   };
 
   const getFilteredRooms = () => {

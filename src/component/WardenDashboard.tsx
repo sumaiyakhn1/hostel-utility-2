@@ -220,9 +220,9 @@ export default function WardenDashboard() {
     navigate("/warden/login");
   };
 
-  const fetchMasterData = async () => {
+  const fetchMasterData = async (entityId: string = ENTITY_ID) => {
     try {
-      const data = await hostelService.getHostelMaster(ENTITY_ID);
+      const data = await hostelService.getHostelMaster(entityId);
       if (data) setMasterData(data);
     } catch (err) {
       console.error("Error fetching master data:", err);
@@ -260,18 +260,22 @@ export default function WardenDashboard() {
   const handleEditClick = (student: StudentRecord) => {
     setEditingId(student._id);
     setEditForm({ ...student });
-    fetchMasterData();
+    fetchMasterData(student.entityId || ENTITY_ID);
     fetchRoomsForEdit(student.entityId || ENTITY_ID, student.wing, student.roomType, student.session);
   };
 
   useEffect(() => {
-    if (editingId && editForm) {
+    if ((editingId || isModalEditing) && editForm) {
       fetchRoomsForEdit(editForm.entityId || ENTITY_ID, editForm.wing, editForm.roomType, editForm.session);
     }
-  }, [editForm?.wing, editForm?.roomType]);
+  }, [editForm?.wing, editForm?.roomType, editingId, isModalEditing]);
 
   const handleSaveEdit = async () => {
     if (!editForm) return;
+    if (!editForm.wing || !editForm.roomType || !editForm.roomNo || !editForm.bedNo) {
+      alert("Please select Wing, Room Type, Room No, and Bed No before saving.");
+      return;
+    }
     setProcessingId(editForm._id);
     try {
       await hostelService.updateStudentInDB(editForm.regNumber, editForm);
@@ -374,7 +378,7 @@ export default function WardenDashboard() {
     setApprovePaymentFreq(student.paymentFreq || "");
     setRejectRemark("");
     setShowRejectBox(false);
-    if (!masterData) fetchMasterData();
+    fetchMasterData(student.entityId || ENTITY_ID);
 
     try {
       const erpData = await hostelService.getStudentDetails({
@@ -420,7 +424,7 @@ export default function WardenDashboard() {
   const handleModalEditToggle = () => {
     if (!isModalEditing) {
       setEditForm({ ...selectedStudent });
-      fetchMasterData();
+      fetchMasterData(selectedStudent?.entityId || ENTITY_ID);
       if (selectedStudent) {
         fetchRoomsForEdit(selectedStudent.entityId || ENTITY_ID, selectedStudent.wing, selectedStudent.roomType, selectedStudent.session);
       }
@@ -430,6 +434,10 @@ export default function WardenDashboard() {
 
   const handleModalSave = async () => {
     if (!editForm) return;
+    if (!editForm.wing || !editForm.roomType || !editForm.roomNo || !editForm.bedNo) {
+      alert("Please select Wing, Room Type, Room No, and Bed No before saving.");
+      return;
+    }
     setProcessingId(editForm._id);
     try {
       await hostelService.updateStudentInDB(editForm.regNumber, editForm);
@@ -614,54 +622,56 @@ export default function WardenDashboard() {
             className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm animate-fadeIn"
             onClick={() => setShowErpConfirm(false)}
           />
-          <div className="bg-white rounded-[2.5rem] w-full max-w-md relative z-10 shadow-[0_50px_100px_rgba(0,0,0,0.25)] border border-slate-100 overflow-hidden animate-slideUp">
+          <div className="bg-white rounded-[2rem] w-full max-w-lg relative z-10 shadow-[0_50px_100px_rgba(0,0,0,0.25)] border border-slate-100 overflow-hidden animate-slideUp">
             {/* Header */}
-            <div className="bg-indigo-600 px-8 py-10 text-white relative overflow-hidden">
+            <div className="bg-indigo-600 px-6 py-4 text-white relative overflow-hidden">
               <div className="absolute top-0 right-0 -mr-10 -mt-10 w-40 h-40 bg-white/10 rounded-full blur-3xl" />
-              <div className="relative z-10">
-                <div className="w-12 h-12 bg-white/20 rounded-2xl flex items-center justify-center mb-4 backdrop-blur-md">
-                  <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <div className="relative z-10 flex items-center gap-4">
+                <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center backdrop-blur-md flex-shrink-0">
+                  <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
                   </svg>
                 </div>
-                <h3 className="text-2xl font-black tracking-tight leading-tight">Final ERP Review</h3>
-                <p className="text-indigo-100 text-xs font-bold uppercase tracking-widest mt-2 opacity-80">Check details before pushing</p>
+                <div>
+                  <h3 className="text-xl font-black tracking-tight leading-tight">Final ERP Review</h3>
+                  <p className="text-indigo-100 text-[9px] font-bold uppercase tracking-widest mt-1 opacity-80">Check details before pushing</p>
+                </div>
               </div>
             </div>
 
             {/* Content */}
-            <div className="p-8">
-              <div className="space-y-6">
+            <div className="p-5">
+              <div className="space-y-3">
                 {/* Student Info */}
-                <div className="flex items-center gap-4 p-4 bg-slate-50 rounded-2xl border border-slate-100">
-                  <div className="w-10 h-10 bg-indigo-100 rounded-full flex items-center justify-center text-lg font-black text-indigo-600">
+                <div className="flex items-center gap-3 p-3 bg-slate-50 rounded-xl border border-slate-100">
+                  <div className="w-8 h-8 bg-indigo-100 rounded-full flex items-center justify-center text-base font-black text-indigo-600">
                     {erpPushData.name?.[0] || erpPushData.regNumber[0]}
                   </div>
                   <div>
-                    <p className="text-sm font-black text-slate-900">{erpPushData.name}</p>
-                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">{erpPushData.regNumber}</p>
+                    <p className="text-xs font-black text-slate-900">{erpPushData.name}</p>
+                    <p className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">{erpPushData.regNumber}</p>
                   </div>
                 </div>
 
                 {/* Allocation Details */}
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-2 gap-2">
                   {[
                     { label: "Wing", value: erpPushData.wing, icon: "🏢" },
                     { label: "Room", value: erpPushData.roomNo, icon: "🚪" },
                     { label: "Bed", value: erpPushData.bedNo, icon: "🛏️" },
                     { label: "Frequency", value: erpPushData.paymentFreq, icon: "💳" }
                   ].map((item) => (
-                    <div key={item.label} className="p-3 bg-slate-50 rounded-xl border border-slate-100">
-                      <p className="text-[8px] font-black uppercase tracking-widest text-slate-400 mb-1 flex items-center gap-1">
+                    <div key={item.label} className="p-2 bg-slate-50 rounded-lg border border-slate-100">
+                      <p className="text-[8px] font-black uppercase tracking-widest text-slate-400 mb-0.5 flex items-center gap-1">
                         <span>{item.icon}</span> {item.label}
                       </p>
-                      <p className="text-xs font-black text-slate-800">{item.value}</p>
+                      <p className="text-[11px] font-black text-slate-800">{item.value}</p>
                     </div>
                   ))}
                 </div>
 
                 {/* Dates */}
-                <div className="p-4 bg-amber-50 rounded-2xl border border-amber-100 flex items-center justify-between">
+                <div className="p-3 bg-amber-50 rounded-xl border border-amber-100 flex items-center justify-between">
                   <div>
                     <p className="text-[8px] font-black uppercase tracking-widest text-amber-600 mb-1">Start Date</p>
                     <p className="text-xs font-black text-slate-800">{formatDate(erpPushData.startDate)}</p>
@@ -673,25 +683,25 @@ export default function WardenDashboard() {
                   </div>
                 </div>
 
-                <div className="flex items-start gap-3 p-3 bg-red-50 rounded-xl border border-red-100">
-                  <span className="text-base">⚠️</span>
-                  <p className="text-[10px] font-bold text-red-700 leading-relaxed uppercase tracking-tight">
+                <div className="flex items-start gap-2 p-2.5 bg-red-50 rounded-lg border border-red-100">
+                  <span className="text-sm">⚠️</span>
+                  <p className="text-[9px] font-bold text-red-700 leading-relaxed uppercase tracking-tight">
                     Warning: This will permanently update the ERP system. Ensure all details are correct.
                   </p>
                 </div>
               </div>
 
               {/* Actions */}
-              <div className="grid grid-cols-2 gap-4 mt-8">
+              <div className="grid grid-cols-2 gap-3 mt-4">
                 <button
                   onClick={() => setShowErpConfirm(false)}
-                  className="py-4 bg-slate-100 text-slate-500 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-200 transition-all active:scale-95"
+                  className="py-3 bg-slate-100 text-slate-500 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-200 transition-all active:scale-95"
                 >
                   Go Back
                 </button>
                 <button
                   onClick={executeERPPush}
-                  className="py-4 bg-indigo-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-indigo-700 transition-all active:scale-95 shadow-xl shadow-indigo-100"
+                  className="py-3 bg-indigo-600 text-white rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-indigo-700 transition-all active:scale-95 shadow-xl shadow-indigo-100"
                 >
                   Confirm & Push
                 </button>
@@ -1182,32 +1192,38 @@ export default function WardenDashboard() {
                             <select
                               className="w-full text-sm font-black bg-transparent outline-none"
                               value={editForm.wing}
-                              onChange={(e) => setEditForm({ ...editForm, wing: e.target.value })}
+                              onChange={(e) => setEditForm({ ...editForm, wing: e.target.value, roomType: "", roomNo: "", bedNo: "" })}
                             >
+                              <option value="">Select Wing</option>
                               {masterData?.hostel.map(h => <option key={h} value={h}>{h}</option>)}
                             </select>
+                            <p className="text-[8px] text-slate-400 mt-1 uppercase font-bold">Prev: {selectedStudent?.wing || "—"}</p>
                           </div>
                           <div className="bg-slate-50 rounded-2xl p-3 border border-slate-100">
                             <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-1">Room Type</p>
                             <select
                               className="w-full text-sm font-black bg-transparent outline-none"
                               value={editForm.roomType}
-                              onChange={(e) => setEditForm({ ...editForm, roomType: e.target.value })}
+                              onChange={(e) => setEditForm({ ...editForm, roomType: e.target.value, roomNo: "", bedNo: "" })}
                             >
+                              <option value="">Select Type</option>
                               {masterData?.roomType.map(rt => <option key={rt} value={rt}>{rt}</option>)}
                             </select>
+                            <p className="text-[8px] text-slate-400 mt-1 uppercase font-bold">Prev: {selectedStudent?.roomType || "—"}</p>
                           </div>
                           <div className="bg-slate-50 rounded-2xl p-3 border border-slate-100">
                             <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-1">Room No</p>
                             <select
                               className="w-full text-xs font-black bg-transparent outline-none"
                               value={editForm?.roomNo || ""}
-                              onChange={(e) => setEditForm({ ...editForm, roomNo: e.target.value })}
+                              onChange={(e) => setEditForm({ ...editForm, roomNo: e.target.value, bedNo: "" })}
                             >
+                              <option value="">Select Room</option>
                               {editForm && getFilteredRooms(editForm._id).map((rn: any) => (
                                 <option key={rn} value={rn}>{rn}</option>
                               ))}
                             </select>
+                            <p className="text-[8px] text-slate-400 mt-1 uppercase font-bold">Prev: {selectedStudent?.roomNo || "—"}</p>
                           </div>
                           <div className="bg-slate-50 rounded-xl p-2 border border-slate-100">
                             <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-1">Bed No</p>
@@ -1216,10 +1232,12 @@ export default function WardenDashboard() {
                               value={editForm?.bedNo || ""}
                               onChange={(e) => setEditForm({ ...editForm, bedNo: e.target.value })}
                             >
+                              <option value="">Select Bed</option>
                               {editForm && getFilteredBeds(editForm.roomNo, editForm._id).map((b: any) => (
                                 <option key={b.bedName} value={b.bedName}>{b.bedName}</option>
                               ))}
                             </select>
+                            <p className="text-[8px] text-slate-400 mt-1 uppercase font-bold">Prev: {selectedStudent?.bedNo || "—"}</p>
                           </div>
                           <div className="bg-slate-50 rounded-2xl p-3 border border-slate-100 col-span-2 sm:col-span-3">
                             <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-1">Remark</p>
@@ -1645,37 +1663,45 @@ export default function WardenDashboard() {
                         <td className="px-8 py-6">
                           {editingId === student._id ? (
                             <div className="flex flex-col gap-2">
-                              <select
-                                className="text-[11px] font-bold border border-slate-200 rounded-lg p-1"
-                                value={editForm.wing}
-                                onChange={(e) =>
-                                  setEditForm({ ...editForm, wing: e.target.value })
-                                }
-                              >
-                                <option value="">Wing</option>
-                                {masterData?.hostel.map((h) => (
-                                  <option key={h} value={h}>
-                                    {h}
-                                  </option>
-                                ))}
-                              </select>
-                              <select
-                                className="text-[11px] font-bold border border-slate-200 rounded-lg p-1"
-                                value={editForm.roomType}
-                                onChange={(e) =>
-                                  setEditForm({
-                                    ...editForm,
-                                    roomType: e.target.value,
-                                  })
-                                }
-                              >
-                                <option value="">Room Type</option>
-                                {masterData?.roomType.map((rt) => (
-                                  <option key={rt} value={rt}>
-                                    {rt}
-                                  </option>
-                                ))}
-                              </select>
+                              <div>
+                                <select
+                                  className="text-[11px] font-bold border border-slate-200 rounded-lg p-1 w-full"
+                                  value={editForm.wing}
+                                  onChange={(e) =>
+                                    setEditForm({ ...editForm, wing: e.target.value, roomType: "", roomNo: "", bedNo: "" })
+                                  }
+                                >
+                                  <option value="">Wing</option>
+                                  {masterData?.hostel.map((h) => (
+                                    <option key={h} value={h}>
+                                      {h}
+                                    </option>
+                                  ))}
+                                </select>
+                                <p className="text-[8px] text-slate-400 mt-0.5 font-bold uppercase truncate">Prev: {student.wing || "—"}</p>
+                              </div>
+                              <div>
+                                <select
+                                  className="text-[11px] font-bold border border-slate-200 rounded-lg p-1 w-full"
+                                  value={editForm.roomType}
+                                  onChange={(e) =>
+                                    setEditForm({
+                                      ...editForm,
+                                      roomType: e.target.value,
+                                      roomNo: "",
+                                      bedNo: "",
+                                    })
+                                  }
+                                >
+                                  <option value="">Room Type</option>
+                                  {masterData?.roomType.map((rt) => (
+                                    <option key={rt} value={rt}>
+                                      {rt}
+                                    </option>
+                                  ))}
+                                </select>
+                                <p className="text-[8px] text-slate-400 mt-0.5 font-bold uppercase truncate">Prev: {student.roomType || "—"}</p>
+                              </div>
                             </div>
                           ) : (
                             <div>
@@ -1691,40 +1717,47 @@ export default function WardenDashboard() {
                         <td className="px-8 py-6">
                           {editingId === student._id && editForm ? (
                             <div className="flex flex-col gap-2">
-                              <select
-                                className="text-[11px] font-bold border border-slate-200 rounded-lg p-1"
-                                value={editForm.roomNo || ""}
-                                onChange={(e) =>
-                                  setEditForm({
-                                    ...editForm,
-                                    roomNo: e.target.value,
-                                  })
-                                }
-                              >
-                                <option value="">Room</option>
-                                {getFilteredRooms(editForm._id).map((rn: any) => (
-                                  <option key={rn} value={rn}>
-                                    {rn}
-                                  </option>
-                                ))}
-                              </select>
-                              <select
-                                className="text-[11px] font-bold border border-slate-200 rounded-lg p-1"
-                                value={editForm.bedNo || ""}
-                                onChange={(e) =>
-                                  setEditForm({
-                                    ...editForm,
-                                    bedNo: e.target.value,
-                                  })
-                                }
-                              >
-                                <option value="">Bed</option>
-                                {getFilteredBeds(editForm.roomNo, editForm._id).map((b: any) => (
-                                  <option key={b.bedName} value={b.bedName}>
-                                    {b.bedName}
-                                  </option>
-                                ))}
-                              </select>
+                              <div>
+                                <select
+                                  className="text-[11px] font-bold border border-slate-200 rounded-lg p-1 w-full"
+                                  value={editForm.roomNo || ""}
+                                  onChange={(e) =>
+                                    setEditForm({
+                                      ...editForm,
+                                      roomNo: e.target.value,
+                                      bedNo: "",
+                                    })
+                                  }
+                                >
+                                  <option value="">Room</option>
+                                  {getFilteredRooms(editForm._id).map((rn: any) => (
+                                    <option key={rn} value={rn}>
+                                      {rn}
+                                    </option>
+                                  ))}
+                                </select>
+                                <p className="text-[8px] text-slate-400 mt-0.5 font-bold uppercase truncate">Prev: {student.roomNo || "—"}</p>
+                              </div>
+                              <div>
+                                <select
+                                  className="text-[11px] font-bold border border-slate-200 rounded-lg p-1 w-full"
+                                  value={editForm.bedNo || ""}
+                                  onChange={(e) =>
+                                    setEditForm({
+                                      ...editForm,
+                                      bedNo: e.target.value,
+                                    })
+                                  }
+                                >
+                                  <option value="">Bed</option>
+                                  {getFilteredBeds(editForm.roomNo, editForm._id).map((b: any) => (
+                                    <option key={b.bedName} value={b.bedName}>
+                                      {b.bedName}
+                                    </option>
+                                  ))}
+                                </select>
+                                <p className="text-[8px] text-slate-400 mt-0.5 font-bold uppercase truncate">Prev: {student.bedNo || "—"}</p>
+                              </div>
                             </div>
                           ) : (
                             <div className="flex gap-2">
