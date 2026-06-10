@@ -53,46 +53,47 @@ const Landing = () => {
           console.warn("Could not save to localStorage", e);
         }
 
-        const selectedSchool = SCHOOLS.find(s => s.id === selectedSchoolId);
         let regNo = passedRegNo || inputRegNo;
 
-        if (selectedSchool && regNo) {
-          try {
-            // Verify if student exists in the selected entity
-            const studentData = await hostelService.getStudentDetails({
-              id: "689441d9d2b728001069ebe7", // Hardcoded ID expected by backend
-              entity: selectedSchool.entityId,
-              session: selectedSchool.session,
-              regNo: regNo,
-            });
+        if (regNo) {
+          let foundStudent = false;
 
-            // If no valid data is returned, throw an error
-            if (!studentData || !studentData.name) {
-              throw new Error("Student not found in the selected college.");
-            }
+          for (const school of SCHOOLS) {
+            try {
+              // Verify if student exists in the current entity
+              const studentData = await hostelService.getStudentDetails({
+                id: "689441d9d2b728001069ebe7", // Hardcoded ID expected by backend
+                entity: school.entityId,
+                session: school.session,
+                regNo: regNo,
+              });
 
-            // Save valid school details to localStorage
-            localStorage.setItem("student_entity_id", selectedSchool.entityId);
-            localStorage.setItem("student_session", selectedSchool.session);
-            localStorage.setItem("student_college_name", selectedSchool.name);
-            
-            navigate(`/dashboard/${regNo}`);
-          } catch (err: any) {
-            console.error("Student verification failed:", err);
-            if (err.response?.status === 409) {
-              setError("This registration number does not belong to the selected college. Please select the correct college.");
-            } else {
-              setError("Invalid registration number for the selected college.");
+              // If valid data is returned, save and navigate
+              if (studentData && studentData.name) {
+                localStorage.setItem("student_entity_id", school.entityId);
+                localStorage.setItem("student_session", school.session);
+                localStorage.setItem("student_college_name", school.name);
+                
+                foundStudent = true;
+                navigate(`/dashboard/${regNo}`);
+                return; // Stop iteration and navigation
+              }
+            } catch (err: any) {
+              console.error(`Student verification failed for ${school.name}:`, err);
+              // Ignore error and continue to the next school
             }
-            setLoading(false);
-            return; // Stop navigation
           }
-        } else if (!regNo) {
+
+          // If loop finishes and student wasn't found in any school
+          if (!foundStudent) {
+            setError("Could not find this registration number in any available college.");
+            setLoading(false);
+            return;
+          }
+        } else {
            setError("Registration number is missing.");
            setLoading(false);
            return;
-        } else {
-           navigate("/dashboard/unknown"); 
         }
       } else {
         throw new Error("Token not found in response");
@@ -119,55 +120,7 @@ const Landing = () => {
           </div>
         )}
 
-        <div className="mb-4 relative">
-          <label className="block text-left text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] mb-2.5 ml-1">
-            Select School / College
-          </label>
-          <div className="relative">
-            <button
-              onClick={() => {
-                // Using a simple blur to close approach by rendering the dropdown conditionally
-                const dd = document.getElementById("college-dropdown");
-                if (dd) dd.classList.toggle("hidden");
-              }}
-              onBlur={() => {
-                setTimeout(() => {
-                  const dd = document.getElementById("college-dropdown");
-                  if (dd && !dd.matches(':hover')) dd.classList.add("hidden");
-                }, 150);
-              }}
-              className="w-full px-5 py-4 bg-gray-50 border border-gray-100 rounded-[1.25rem] focus:outline-none focus:ring-4 focus:ring-red-700/5 focus:border-red-700/30 transition-all font-bold text-gray-800 flex justify-between items-center text-left"
-            >
-              <span className="truncate pr-4">
-                {SCHOOLS.find((s) => s.id === selectedSchoolId)?.name}
-              </span>
-              <svg className="w-4 h-4 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M19 9l-7 7-7-7" />
-              </svg>
-            </button>
-            
-            <div 
-              id="college-dropdown" 
-              className="hidden absolute z-50 w-full mt-2 bg-white rounded-2xl shadow-[0_10px_40px_-10px_rgba(0,0,0,0.15)] border border-gray-100 overflow-hidden"
-            >
-              {SCHOOLS.map((school) => (
-                <div
-                  key={school.id}
-                  onClick={() => {
-                    setSelectedSchoolId(school.id);
-                    document.getElementById("college-dropdown")?.classList.add("hidden");
-                  }}
-                  className={`px-5 py-4 cursor-pointer text-left transition-colors border-b border-gray-50 last:border-0 hover:bg-red-50
-                    ${selectedSchoolId === school.id ? "bg-red-50/50" : ""}`}
-                >
-                  <p className={`text-sm font-bold leading-relaxed ${selectedSchoolId === school.id ? "text-red-700" : "text-gray-700"}`}>
-                    {school.name}
-                  </p>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
+
 
         <div className="mb-6">
           <label className="block text-left text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] mb-2.5 ml-1">
