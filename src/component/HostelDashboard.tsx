@@ -212,7 +212,6 @@ export default function HostelDashboard() {
   const [hasReapplied, setHasReapplied] = useState(false);
   const [erpHostelAssigned, setErpHostelAssigned] = useState(false);
   const [erpHostelData, setErpHostelData] = useState<any>(null);
-  const [allStudents, setAllStudents] = useState<any[]>([]);
   const [heldBeds, setHeldBeds] = useState<{ roomName: string; bedName: string }[]>([]);
 
   const addNotification = (
@@ -232,7 +231,7 @@ export default function HostelDashboard() {
     setError("");
     try {
       // Parallelize to avoid head-of-line blocking
-      const [data, all, heldRooms] = await Promise.all([
+      const [data, _, heldRooms] = await Promise.all([
         hostelService.getHostelMaster(savedEntityId).catch((err) => {
           console.error("Master data fetch failed:", err);
           return null;
@@ -248,7 +247,6 @@ export default function HostelDashboard() {
       ]);
 
       if (data) setMasterData(data);
-      if (all) setAllStudents(all);
       if (heldRooms) setHeldBeds(heldRooms.map((r: any) => ({ roomName: r.roomName, bedName: r.bedName })));
     } catch (err) {
       console.error("Main fetch error:", err);

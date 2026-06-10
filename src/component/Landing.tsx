@@ -21,7 +21,6 @@ const Landing = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [inputRegNo, setInputRegNo] = useState("");
-  const [selectedSchoolId, setSelectedSchoolId] = useState(SCHOOLS[0].id);
   const navigate = useNavigate();
 
   useEffect(() => {
