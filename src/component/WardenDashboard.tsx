@@ -20,6 +20,16 @@ interface StudentRecord {
   remark: string;
   rejectRemark: string;
   status: string;
+  history?: {
+    action: string;
+    updatedAt: string;
+    wing: string;
+    roomNo: string;
+    bedNo: string;
+    roomType: string;
+    status: string;
+    remark?: string;
+  }[];
 }
 
 interface MasterData {
@@ -1400,6 +1410,42 @@ export default function WardenDashboard() {
                             </div>
                           </div>
                         )}
+                      </div>
+                    )}
+
+                    {selectedStudent.history && selectedStudent.history.length > 0 && (
+                      <div className="mt-6 pt-4 border-t border-slate-100 animate-slideUp">
+                        <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-4 flex items-center gap-2">
+                          <span className="w-1.5 h-1.5 rounded-full bg-orange-500" />
+                          Application Timeline
+                        </p>
+                        <div className="space-y-4 relative before:absolute before:inset-0 before:ml-2 before:-translate-x-px md:before:ml-[7px] md:before:translate-x-0 before:h-full before:w-0.5 before:bg-gradient-to-b before:from-slate-200 before:to-slate-200">
+                          {selectedStudent.history.map((hist, i) => (
+                            <div key={i} className="relative flex items-center gap-4 group">
+                              <div className="flex items-center justify-center w-4 h-4 rounded-full border-2 border-white bg-orange-500 shadow shrink-0 z-10" />
+                              <div className="flex-1 bg-slate-50 p-3 rounded-xl border border-slate-100 shadow-sm">
+                                <div className="flex items-center justify-between space-x-2 mb-1">
+                                  <div className="font-bold text-slate-800 text-xs">{hist.action}</div>
+                                  <div className="text-[9px] font-black uppercase tracking-widest text-slate-400">
+                                    {new Date(hist.updatedAt).toLocaleString("en-IN", {
+                                      day: "2-digit",
+                                      month: "short",
+                                      hour: "2-digit",
+                                      minute: "2-digit"
+                                    })}
+                                  </div>
+                                </div>
+                                <div className="text-[10px] text-slate-500 font-medium">
+                                  <span className="font-bold text-slate-600">Wing:</span> {hist.wing} &nbsp;·&nbsp;
+                                  <span className="font-bold text-slate-600">Type:</span> {hist.roomType} &nbsp;·&nbsp;
+                                  <span className="font-bold text-slate-600">Room:</span> {hist.roomNo} &nbsp;·&nbsp;
+                                  <span className="font-bold text-slate-600">Bed:</span> {hist.bedNo}
+                                  {hist.remark && <><br /><span className="italic text-slate-400">Remark: {hist.remark}</span></>}
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
                       </div>
                     )}
                   </div>

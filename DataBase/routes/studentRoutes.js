@@ -38,7 +38,16 @@ router.post("/:regNumber", async (req, res) => {
         }
 
         // ✅ Tabhi save karo
-        const student = new Student({ ...req.body, regNumber });
+        const newHistory = {
+            action: "Requested",
+            wing: req.body.wing,
+            roomNo: req.body.roomNo,
+            bedNo: req.body.bedNo,
+            roomType: req.body.roomType,
+            status: "pending",
+            remark: req.body.remark
+        };
+        const student = new Student({ ...req.body, regNumber, history: [newHistory] });
         await student.save();
 
         res.json({ message: "Data Saved Successfully", student });
@@ -74,9 +83,47 @@ router.patch("/:regNumber", async (req, res) => {
             }
         }
 
+        let newHistoryEntry = null;
+        const incomingStatus = req.body.status || existing.status;
+        
+        // Determine action type
+        if (incomingStatus !== existing.status) {
+            let actionName = incomingStatus.charAt(0).toUpperCase() + incomingStatus.slice(1);
+            if (incomingStatus === 'pending' && existing.status !== 'pending') actionName = "Reverted";
+            newHistoryEntry = {
+                action: actionName,
+                status: incomingStatus,
+                wing: req.body.wing || existing.wing,
+                roomNo: req.body.roomNo || existing.roomNo,
+                bedNo: req.body.bedNo || existing.bedNo,
+                roomType: req.body.roomType || existing.roomType,
+                remark: req.body.remark || existing.remark
+            };
+        } else if (
+            (req.body.wing && req.body.wing !== existing.wing) ||
+            (req.body.roomNo && req.body.roomNo !== existing.roomNo) ||
+            (req.body.bedNo && req.body.bedNo !== existing.bedNo) ||
+            (req.body.roomType && req.body.roomType !== existing.roomType)
+        ) {
+            newHistoryEntry = {
+                action: "Edited",
+                status: existing.status,
+                wing: req.body.wing || existing.wing,
+                roomNo: req.body.roomNo || existing.roomNo,
+                bedNo: req.body.bedNo || existing.bedNo,
+                roomType: req.body.roomType || existing.roomType,
+                remark: req.body.remark || existing.remark
+            };
+        }
+
+        const updatePayload = { $set: req.body };
+        if (newHistoryEntry) {
+            updatePayload.$push = { history: newHistoryEntry };
+        }
+
         const student = await Student.findOneAndUpdate(
             { regNumber: req.params.regNumber },
-            req.body,
+            updatePayload,
             { new: true }
         );
         res.json(student);

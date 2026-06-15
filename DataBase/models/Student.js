@@ -25,12 +25,24 @@ const studentSchema = new mongoose.Schema({
   rejectRemark: String,
   status: {
     type: String,
-    default: "pending", // pending, approved, rejected
+    default: "pending", // pending, approved, rejected, assigned
   },
   hasReapplied: {
     type: Boolean,
     default: false,
   },
+  history: [
+    {
+      action: String, // e.g., "Requested", "Edited", "Assigned", "Rejected"
+      updatedAt: { type: Date, default: Date.now },
+      wing: String,
+      roomNo: String,
+      bedNo: String,
+      roomType: String,
+      status: String,
+      remark: String
+    }
+  ]
 });
 
 export default mongoose.model("StudentData", studentSchema);
