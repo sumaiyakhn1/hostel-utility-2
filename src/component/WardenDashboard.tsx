@@ -419,7 +419,7 @@ export default function WardenDashboard() {
         (s) =>
           s.roomNo === roomName &&
           s._id !== currentStudentId &&
-          (s.status === "pending" || s.status === "approved" || s.status === "assigned"),
+          (s.status === "pending" || s.status === "reapplied" || s.status === "approved" || s.status === "assigned"),
       )
       .map((s) => s.bedNo);
 
@@ -460,6 +460,128 @@ export default function WardenDashboard() {
       setProcessingId(null);
     }
   };
+
+  const handleERPRedirect = async (studentToRedirect: StudentRecord) => {
+    try {
+      const erpData = await hostelService.getStudentDetails({
+        id: "689441d9d2b728001069ebe7",
+        entity: studentToRedirect.entityId || ENTITY_ID,
+        session: studentToRedirect.session,
+        regNo: studentToRedirect.regNumber,
+      });
+      if (!erpData || !erpData._id) {
+        alert("Student not found in ERP system.");
+        return;
+      }
+      const domain = "campus.odpay.in";
+      const url = `https://${domain}/student/studentProfile/${erpData._id}/${studentToRedirect.regNumber}`;
+      window.open(url, "_blank");
+    } catch (err) {
+      console.error("Error redirecting to ERP:", err);
+      alert("Failed to fetch ERP data for redirect.");
+    }
+  };
+
+  const handleSyncERP = async () => {
+    if (!selectedStudent) return;
+    setProcessingId(selectedStudent._id);
+    try {
+      const erpData = await hostelService.getStudentDetails({
+        id: "689441d9d2b728001069ebe7",
+        entity: selectedStudent.entityId || ENTITY_ID,
+        session: selectedStudent.session,
+        regNo: selectedStudent.regNumber,
+      });
+
+      if (!erpData) {
+        alert("Could not fetch ERP data.");
+        return;
+      }
+      setSelectedErpStudent(erpData);
+
+      let isChanged = false;
+      let updates: any = {};
+
+      if (!erpData.hostel) {
+        // ERP has no hostel -> student removed
+        if (selectedStudent.status === "assigned" || selectedStudent.roomNo) {
+          updates = {
+            status: "pending",
+            roomNo: "",
+            bedNo: "",
+            startDate: "",
+            endDate: "",
+            paymentFreq: "",
+            wing: "",
+            roomType: ""
+          };
+          isChanged = true;
+        }
+      } else {
+        // Update if details changed
+        if (selectedStudent.wing !== erpData.hostel) {
+          updates.wing = erpData.hostel;
+          isChanged = true;
+        }
+        if (selectedStudent.roomType !== erpData.hostelRoomType) {
+          updates.roomType = erpData.hostelRoomType;
+          isChanged = true;
+        }
+        if (selectedStudent.roomNo !== erpData.hostelRoomName) {
+          updates.roomNo = erpData.hostelRoomName;
+          isChanged = true;
+        }
+        if (selectedStudent.bedNo !== erpData.hostelRoomBedName) {
+          updates.bedNo = erpData.hostelRoomBedName;
+          isChanged = true;
+        }
+        if (selectedStudent.paymentFreq !== erpData.hostelPaymentFrequency) {
+          updates.paymentFreq = erpData.hostelPaymentFrequency;
+          isChanged = true;
+        }
+        
+        const formatDateForInput = (timestamp: any) => {
+            if (!timestamp) return "";
+            const d = new Date(timestamp);
+            if (isNaN(d.getTime())) return "";
+            return d.toISOString().split('T')[0];
+        };
+
+        const erpStartDate = formatDateForInput(erpData.hostelStartDate);
+        if (erpStartDate && selectedStudent.startDate !== erpStartDate) {
+           updates.startDate = erpStartDate;
+           isChanged = true;
+        }
+
+        const erpEndDate = formatDateForInput(erpData.hostelEndDate);
+        if (erpEndDate && selectedStudent.endDate !== erpEndDate) {
+           updates.endDate = erpEndDate;
+           isChanged = true;
+        }
+
+        if (selectedStudent.status !== "assigned") {
+           updates.status = "assigned";
+           isChanged = true;
+        }
+      }
+
+      if (isChanged) {
+        const updatedStudent = { ...selectedStudent, ...updates };
+        await hostelService.updateStudentInDB(selectedStudent.regNumber, updates);
+        setSelectedStudent(updatedStudent);
+        await fetchAllStudents();
+        alert("Synced successfully! Local records updated.");
+      } else {
+        alert("Already in sync. No changes found.");
+      }
+    } catch (err) {
+      console.error(err);
+      alert("Failed to sync with ERP.");
+    } finally {
+      setProcessingId(null);
+    }
+  };
+
 
   const handleReject = async () => {
     if (!selectedStudent) return;
@@ -557,12 +679,16 @@ export default function WardenDashboard() {
       return "bg-emerald-500 text-white shadow-lg shadow-emerald-200";
     if (status === "rejected")
       return "bg-red-500 text-white shadow-lg shadow-red-200";
+    if (status === "reapplied")
+      return "bg-blue-100 text-blue-700";
     return "bg-amber-100 text-amber-700";
   };
 
   const statusDot = (status: string) => {
     if (status === "approved" || status === "assigned" || status === "rejected")
       return "bg-white";
+    if (status === "reapplied")
+      return "bg-blue-600 animate-pulse";
     return "bg-amber-600 animate-ping";
   };
 
@@ -784,6 +910,7 @@ export default function WardenDashboard() {
             >
               <option value="all">All Status</option>
               <option value="pending">Pending</option>
+              <option value="reapplied">Reapplied</option>
               <option value="approved">Approved</option>
               <option value="assigned">Assigned</option>
               <option value="rejected">Rejected</option>
@@ -1182,12 +1309,32 @@ export default function WardenDashboard() {
                       <h3 className="text-[9px] font-black uppercase tracking-widest text-slate-400">
                         Application Details
                       </h3>
-                      <button
-                        onClick={handleModalEditToggle}
-                        className="text-[10px] font-black uppercase tracking-widest text-red-500 hover:text-red-600 transition-colors"
-                      >
-                        {isModalEditing ? "Cancel" : "Edit"}
-                      </button>
+                      <div className="flex items-center gap-3">
+                        <button
+                          onClick={handleSyncERP}
+                          disabled={!!processingId}
+                          className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 text-blue-600 rounded-lg text-[9px] font-black uppercase tracking-widest hover:bg-blue-100 transition-all disabled:opacity-50"
+                        >
+                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                          </svg>
+                          {processingId ? "Syncing..." : "Sync ERP"}
+                        </button>
+                        <button
+                          onClick={handleModalEditToggle}
+                          className="text-[10px] font-black uppercase tracking-widest text-red-500 hover:text-red-600 transition-colors"
+                        >
+                          {isModalEditing ? "Cancel" : "Edit"}
+                        </button>
+                        {selectedStudent.status === "assigned" && (
+                          <button
+                            onClick={() => handleERPRedirect(selectedStudent)}
+                            className="bg-red-500 text-white px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest shadow-md shadow-red-100 hover:bg-red-600 active:scale-95 transition-all"
+                          >
+                            Remove
+                          </button>
+                        )}
+                      </div>
                     </div>
                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mb-4">
                       {isModalEditing ? (
@@ -1288,7 +1435,7 @@ export default function WardenDashboard() {
                       )}
                     </div>
 
-                    {selectedStudent.status === "pending" && (
+                    {(selectedStudent.status === "pending" || selectedStudent.status === "reapplied") && (
                       <div className="mt-4 pt-4 border-t border-slate-100 animate-slideUp">
                         <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-4 flex items-center gap-2">
                           <span className="w-1.5 h-1.5 rounded-full bg-indigo-500" />
@@ -1914,7 +2061,7 @@ export default function WardenDashboard() {
                                   </button>
                                 )
                               )}
-                            {student.status === "pending" && (
+                            {(student.status === "pending" || student.status === "reapplied") && (
                               <button
                                 onClick={() => {
                                   setSelectedStudent(student);
@@ -1928,12 +2075,7 @@ export default function WardenDashboard() {
                             )}
                             {student.status === "assigned" && (
                               <button
-                                onClick={() => {
-                                  setRemoveStudent(student);
-                                  setShowRemoveModal(true);
-                                  setRemoveRemark("-");
-                                  setRemoveInstallments(["Even"]);
-                                }}
+                                onClick={() => handleERPRedirect(student)}
                                 className="bg-red-500 text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-xl shadow-red-100 hover:bg-red-600 active:scale-95 transition-all"
                               >
                                 Remove
