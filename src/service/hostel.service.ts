@@ -8,7 +8,7 @@ const api = axios.create({
 
 // Local/Deployed Backend API for MongoDB saving
 const localApi = axios.create({
-  baseURL: import.meta.env.VITE_BACKEND_URL || "http://localhost:5000",
+  baseURL: import.meta.env.VITE_BACKEND_URL || "https://hostel-utility-2.onrender.com",
 });
 
 api.interceptors.request.use(
