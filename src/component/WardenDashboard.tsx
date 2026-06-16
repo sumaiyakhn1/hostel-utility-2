@@ -90,7 +90,7 @@ export default function WardenDashboard() {
   const [removeInstallments, setRemoveInstallments] = useState<string[]>(["Even"]);
   const [removeLoading, setRemoveLoading] = useState(false);
 
-  const ENTITY_ID = "5ea04b2f774faa5d67505ab2";
+  const ENTITY_ID = "5fa1331b2286620b9072b6e3";
 
 
   const fetchAllStudents = async () => {
@@ -264,7 +264,7 @@ export default function WardenDashboard() {
     if (student.collegeName) return student.collegeName;
     // Fallbacks for older records that didn't have collegeName saved
     if (student.entityId === "5e74b933c14d052673463fd3") return "JMIT";
-    return "JMIETI"; // Default fallback since it was the original hardcoded entity
+    return "Global Institute of Technology and Management"; // Default fallback since it was the original hardcoded entity
   };
 
   const handleEditClick = (student: StudentRecord) => {
@@ -862,7 +862,7 @@ export default function WardenDashboard() {
         <div className="flex items-center gap-4">
           <button
             onClick={openHoldModal}
-            className="px-4 py-3 bg-amber-500 text-white border border-amber-400 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-amber-600 transition-all shadow-lg shadow-amber-100 flex items-center gap-2"
+            className="hidden px-4 py-3 bg-amber-500 text-white border border-amber-400 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-amber-600 transition-all shadow-lg shadow-amber-100 items-center gap-2"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <rect x="3" y="11" width="18" height="11" rx="2" ry="2" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
@@ -1342,7 +1342,17 @@ export default function WardenDashboard() {
                           {/* Editable Fields in Modal */}
                           <div className="bg-slate-50 rounded-2xl p-3 border border-slate-100">
                             <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-1">Session</p>
-                            <p className="text-sm font-black text-slate-800">{editForm.session}</p>
+                            <select
+                              className="w-full text-sm font-black bg-transparent outline-none"
+                              value={editForm.session || ""}
+                              onChange={(e) => setEditForm({ ...editForm, session: e.target.value, roomNo: "", bedNo: "" })}
+                            >
+                              <option value="">Select Session</option>
+                              {Array.from(new Set([selectedStudent?.session, "2024-25 Odd", "2024-25 Even", "2025-26 Odd", "2025-26 Even"])).filter(Boolean).map(s => (
+                                <option key={s as string} value={s as string}>{s as string}</option>
+                              ))}
+                            </select>
+                            <p className="text-[8px] text-slate-400 mt-1 uppercase font-bold">Prev: {selectedStudent?.session || "—"}</p>
                           </div>
                           <div className="bg-slate-50 rounded-2xl p-3 border border-slate-100">
                             <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-1">Wing</p>

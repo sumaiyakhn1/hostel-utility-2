@@ -8,7 +8,7 @@ const api = axios.create({
 
 // Local/Deployed Backend API for MongoDB saving
 const localApi = axios.create({
-  baseURL: import.meta.env.VITE_BACKEND_URL || "https://hostel-dashboard-af3s.onrender.com",
+  baseURL: import.meta.env.VITE_BACKEND_URL || "http://localhost:5000",
 });
 
 api.interceptors.request.use(
@@ -43,8 +43,8 @@ localApi.interceptors.request.use(
 
 export const hostelService = {
   login: async () => {
-    const mobile = "2233445577";
-    const password = "2233445577";
+    const mobile = "9811709509";
+    const password = "9811709509";
     const response = await api.post("/login", { mobile, password });
     return response.data;
   },

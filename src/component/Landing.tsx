@@ -4,15 +4,9 @@ import { hostelService } from "../service/hostel.service";
 
 const SCHOOLS = [
   {
-    id: "JMIETI",
-    name: "JMIETI (Jai Parkash Mukand Lal Innovative Eng & Tech)",
-    entityId: "5ea04b2f774faa5d67505ab2",
-    session: "2025-26 Even"
-  },
-  {
-    id: "JMIT",
-    name: "JMIT (Seth Jai Parkash Mukand Lal Inst of Eng & Tech)",
-    entityId: "5e74b933c14d052673463fd3",
+    id: "GITM",
+    name: "Global Institute of Technology and Management",
+    entityId: "5fa1331b2286620b9072b6e3",
     session: "2025-26 Even"
   }
 ];

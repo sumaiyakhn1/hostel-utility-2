@@ -97,7 +97,7 @@ router.patch("/:regNumber", async (req, res) => {
                 roomNo: req.body.roomNo || existing.roomNo,
                 bedNo: req.body.bedNo || existing.bedNo,
                 roomType: req.body.roomType || existing.roomType,
-                remark: req.body.remark || existing.remark
+                remark: req.body.rejectRemark || req.body.remark || existing.remark
             };
         } else if (
             (req.body.wing && req.body.wing !== existing.wing) ||
@@ -116,7 +116,11 @@ router.patch("/:regNumber", async (req, res) => {
             };
         }
 
-        const updatePayload = { $set: req.body };
+        const bodyToUpdate = { ...req.body };
+        delete bodyToUpdate._id;
+        delete bodyToUpdate.history;
+
+        const updatePayload = { $set: bodyToUpdate };
         if (newHistoryEntry) {
             updatePayload.$push = { history: newHistoryEntry };
         }

@@ -188,7 +188,7 @@ export default function HostelDashboard() {
   const [error, setError] = useState("");
   const [masterData, setMasterData] = useState<HostelMasterData | null>(null);
 
-  const savedEntityId = localStorage.getItem("student_entity_id") || "5ea04b2f774faa5d67505ab2";
+  const savedEntityId = localStorage.getItem("student_entity_id") || "5fa1331b2286620b9072b6e3";
   const savedSession = localStorage.getItem("student_session") || "2025-26 Even";
   const savedCollegeName = localStorage.getItem("student_college_name") || "";
 
@@ -1003,7 +1003,7 @@ export default function HostelDashboard() {
                             name={field.name}
                             value={val}
                             onChange={handleChange}
-                            disabled={isLocked || field.name === "session" || (field.name === "roomNo" && getFilteredRooms().length === 0)}
+                            disabled={isLocked || (field.name === "roomNo" && getFilteredRooms().length === 0)}
                             className="w-full appearance-none rounded-xl pr-10 outline-none transition-all duration-200 text-sm font-bold text-slate-800"
                             style={{
                               padding: "0.875rem 2.5rem 0.875rem 1rem",
@@ -1014,8 +1014,8 @@ export default function HostelDashboard() {
                               boxShadow: filled
                                 ? `0 4px 20px rgba(237,128,65,0.12)`
                                 : "none",
-                              opacity: isLocked || field.name === "session" ? 0.65 : 1,
-                              cursor: isLocked || field.name === "session" ? "not-allowed" : "pointer",
+                              opacity: isLocked ? 0.65 : 1,
+                              cursor: isLocked ? "not-allowed" : "pointer",
                             }}
                           >
                             <option value="">
