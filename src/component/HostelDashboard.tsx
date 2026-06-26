@@ -891,17 +891,21 @@ export default function HostelDashboard() {
                           ? "#f0fdf4"
                           : localStatus === "rejected"
                             ? "#fff1f2"
-                            : localStatus === "reapplying"
-                              ? "#eff6ff"
-                              : "#fffbeb",
+                            : localStatus === "removed"
+                              ? "#f8fafc"
+                              : localStatus === "reapplying"
+                                ? "#eff6ff"
+                                : "#fffbeb",
                       borderColor:
                         localStatus === "approved" || localStatus === "assigned"
                           ? "#bbf7d0"
                           : localStatus === "rejected"
                             ? "#fecdd3"
-                            : localStatus === "reapplying"
-                              ? "#bfdbfe"
-                              : "#fde68a",
+                            : localStatus === "removed"
+                              ? "#e2e8f0"
+                              : localStatus === "reapplying"
+                                ? "#bfdbfe"
+                                : "#fde68a",
                     }}
                   >
                     <span className="text-2xl flex-shrink-0 mt-0.5">
@@ -909,9 +913,11 @@ export default function HostelDashboard() {
                         ? "🎉"
                         : localStatus === "rejected"
                           ? "❌"
-                          : localStatus === "reapplying"
-                            ? "📝"
-                            : "⏳"}
+                          : localStatus === "removed"
+                            ? "🚪"
+                            : localStatus === "reapplying"
+                              ? "📝"
+                              : "⏳"}
                     </span>
                     <div>
                       <p
@@ -922,20 +928,24 @@ export default function HostelDashboard() {
                               ? "#15803d"
                               : localStatus === "rejected"
                                 ? "#be123c"
-                                : localStatus === "reapplying"
-                                  ? "#1d4ed8"
-                                  : "#92400e",
+                                : localStatus === "removed"
+                                  ? "#475569"
+                                  : localStatus === "reapplying"
+                                    ? "#1d4ed8"
+                                    : "#92400e",
                         }}
                       >
                         {localStatus === "approved" || localStatus === "assigned"
                           ? "Room Approved by Warden!"
                           : localStatus === "rejected"
                             ? "Application Rejected by Warden"
-                            : localStatus === "reapplying"
-                              ? "Re-applying Application"
-                              : localStatus === "reapplied"
-                                ? "Application Re-applied! Pending Review"
-                                : "Pending Warden Approval"}
+                            : localStatus === "removed"
+                              ? "Your hostel allocation has been removed"
+                              : localStatus === "reapplying"
+                                ? "Re-applying Application"
+                                : localStatus === "reapplied"
+                                  ? "Application Re-applied! Pending Review"
+                                  : "Pending Warden Approval"}
                       </p>
                       {localStatus === "rejected" && rejectRemark && (
                         <p className="text-xs text-rose-600 font-semibold mt-1">

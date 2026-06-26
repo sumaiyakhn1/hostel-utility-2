@@ -504,9 +504,9 @@ export default function WardenDashboard() {
 
       if (!erpData.hostel) {
         // ERP has no hostel -> student removed
-        if (selectedStudent.status === "assigned" || selectedStudent.roomNo) {
+        if (selectedStudent.status !== "removed" && (selectedStudent.status === "assigned" || !selectedStudent.wing || !selectedStudent.roomNo)) {
           updates = {
-            status: "pending",
+            status: "removed",
             roomNo: "",
             bedNo: "",
             startDate: "",
@@ -627,12 +627,14 @@ export default function WardenDashboard() {
       );
 
       await hostelService.updateStudentInDB(removeStudent.regNumber, {
-        status: "pending",
+        status: "removed",
         roomNo: "",
         bedNo: "",
         startDate: "",
         endDate: "",
-        paymentFreq: ""
+        paymentFreq: "",
+        wing: "",
+        roomType: ""
       });
 
       alert("Hostel removed from student successfully.");
@@ -679,13 +681,15 @@ export default function WardenDashboard() {
       return "bg-emerald-500 text-white shadow-lg shadow-emerald-200";
     if (status === "rejected")
       return "bg-red-500 text-white shadow-lg shadow-red-200";
+    if (status === "removed")
+      return "bg-slate-500 text-white shadow-lg shadow-slate-200";
     if (status === "reapplied")
       return "bg-blue-100 text-blue-700";
     return "bg-amber-100 text-amber-700";
   };
 
   const statusDot = (status: string) => {
-    if (status === "approved" || status === "assigned" || status === "rejected")
+    if (status === "approved" || status === "assigned" || status === "rejected" || status === "removed")
       return "bg-white";
     if (status === "reapplied")
       return "bg-blue-600 animate-pulse";
@@ -914,6 +918,7 @@ export default function WardenDashboard() {
               <option value="approved">Approved</option>
               <option value="assigned">Assigned</option>
               <option value="rejected">Rejected</option>
+              <option value="removed">Removed</option>
             </select>
 
             <input
